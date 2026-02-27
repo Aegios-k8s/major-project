@@ -1,0 +1,129 @@
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { useSecurityContext } from "@/contexts/SecurityContext";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Shield, CheckCircle, AlertTriangle, AlertCircle } from "lucide-react";
+
+const SecurityOverview = () => {
+  const { score, isLoading } = useSecurityContext();
+
+  if (isLoading || !score) {
+    return (
+      <Card className="neon-border bg-card">
+        <CardContent className="p-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="text-center space-y-2">
+              <Skeleton className="h-16 w-24 mx-auto" />
+              <Skeleton className="h-4 w-32 mx-auto" />
+            </div>
+            <div className="space-y-3">
+              <Skeleton className="h-6 w-40" />
+              <Skeleton className="h-4 w-full" />
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const getCriticalityColor = (level: string) => {
+    switch (level) {
+      case 'Low':
+        return 'bg-primary/20 text-primary border-primary';
+      case 'Medium':
+        return 'bg-yellow-500/20 text-yellow-500 border-yellow-500';
+      case 'High':
+        return 'bg-destructive/20 text-destructive border-destructive';
+      default:
+        return 'bg-muted/20 text-muted-foreground border-muted';
+    }
+  };
+
+  const getCriticalityIcon = (level: string) => {
+    switch (level) {
+      case 'Low':
+        return <CheckCircle className="h-4 w-4" />;
+      case 'Medium':
+        return <AlertTriangle className="h-4 w-4" />;
+      case 'High':
+        return <AlertCircle className="h-4 w-4" />;
+      default:
+        return <Shield className="h-4 w-4" />;
+    }
+  };
+
+  const narrativeText = `${score.counts.Critical} services are Critical, ${score.counts.Good} Good, ${score.counts.Low} Low risk.`;
+
+  return (
+    <Card className="neon-border bg-card">
+      <CardContent className="p-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-center">
+          {/* Left Column - Big Score Number */}
+          <div className="text-center space-y-2">
+            <h2 
+              className="text-6xl font-bold " 
+              aria-live="polite"
+              aria-label={`Security score: ${score.score} percent`}
+            >
+              {score.score}%
+            </h2>
+            <p className="text-sm text-muted-foreground uppercase tracking-wide">
+              Security Score
+            </p>
+          </div>
+
+          {/* Middle Column - Criticality & Narrative */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Criticality Level:</span>
+              <Badge 
+                className={`${getCriticalityColor(score.criticality_level)} flex items-center gap-1`}
+              >
+                {getCriticalityIcon(score.criticality_level)}
+                {score.criticality_level}
+              </Badge>
+            </div>
+            <p className="text-sm text-green-muted">
+              {narrativeText}
+            </p>
+          </div>
+
+          {/* Right Column - Metric Tiles */}
+          <div className="grid grid-cols-3 gap-4">
+            <div className="text-center p-3 rounded-lg bg-secondary/50 ">
+              <div className="text-2xl font-bold text-primary ">
+                {score.counts.Good}
+              </div>
+              <div className="text-xs text-muted-foreground uppercase tracking-wide">
+                Good
+              </div>
+            </div>
+            <div className="text-center p-3 rounded-lg bg-secondary/50 ">
+              <div className="text-2xl font-bold text-yellow-500">
+                {score.counts.Low}
+              </div>
+              <div className="text-xs text-muted-foreground uppercase tracking-wide">
+                Low Risk
+              </div>
+            </div>
+            <div className="text-center p-3 rounded-lg bg-secondary/50 ">
+              <div className="text-2xl font-bold text-red-500">
+                {score.counts.Critical}
+              </div>
+              <div className="text-xs text-muted-foreground uppercase tracking-wide">
+                Critical
+              </div>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default SecurityOverview;
