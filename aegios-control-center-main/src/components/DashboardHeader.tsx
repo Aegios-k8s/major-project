@@ -203,7 +203,7 @@ const DashboardHeader = () => {
               <DropdownMenuSeparator className="bg-cyber-border" />
 
               {/* Security Dashboard */}
-              <DropdownMenuGroup>
+              {/* <DropdownMenuGroup>
                 <DropdownMenuItem 
                   className="cursor-pointer text-foreground hover:text-[#00ff6a] hover:bg-secondary"
                   onClick={() => handleProfileAction("My Security Score")}
@@ -233,10 +233,10 @@ const DashboardHeader = () => {
                   Incident Reports
                 </DropdownMenuItem>
               </DropdownMenuGroup>
-              <DropdownMenuSeparator className="bg-cyber-border" />
+              <DropdownMenuSeparator className="bg-cyber-border" /> */}
 
               {/* Analytics & Reports */}
-              <DropdownMenuGroup>
+              {/* <DropdownMenuGroup>
                 <DropdownMenuItem 
                   className="cursor-pointer text-foreground hover:text-[#00ff6a] hover:bg-secondary"
                   onClick={() => handleProfileAction("Usage Analytics")}
@@ -266,10 +266,10 @@ const DashboardHeader = () => {
                   Audit Trail
                 </DropdownMenuItem>
               </DropdownMenuGroup>
-              <DropdownMenuSeparator className="bg-cyber-border" />
+              <DropdownMenuSeparator className="bg-cyber-border" /> */}
 
               {/* Advanced Settings */}
-              <DropdownMenuGroup>
+              {/* <DropdownMenuGroup>
                 <DropdownMenuItem 
                   className="cursor-pointer text-foreground hover:text-[#00ff6a] hover:bg-secondary"
                   onClick={() => handleProfileAction("Integration Settings")}
@@ -299,7 +299,7 @@ const DashboardHeader = () => {
                   Backup & Restore
                 </DropdownMenuItem>
               </DropdownMenuGroup>
-              <DropdownMenuSeparator className="bg-cyber-border" />
+              <DropdownMenuSeparator className="bg-cyber-border" /> */}
 
               {/* Session Management */}
               <DropdownMenuItem 
