@@ -1,0 +1,38 @@
+# Binaries
+*.exe
+*.exe~
+server
+main
+auth-service
+github-service
+k8s-service
+findings-service
+organization-service
+helm-service
+api-gateway
+
+# Environment
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Go
+*.test
+*.out
+vendor/
+
+# Database
+*.db
+*.sqlite
+
+# Logs
+*.log
+
+# Docker
+docker-compose.override.yml
