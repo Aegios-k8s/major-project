@@ -37,7 +37,7 @@ File: `migration_remove_content_column.sql`
 - Updated `storeFilesAndExtractK8s()` to not store content
 - Updated INSERT/UPDATE queries to exclude content column
 
-### 3. services/fetching-service/validation.go
+### 3. services/fetching-service/render.go
 - Changed `RenderHelmAndStoreResources()` to fetch Helm files directly from GitHub
 - Added `fetchHelmFilesFromGitHub()` function to fetch files on-demand
 - Removed dependency on `github_files.content` column
@@ -117,6 +117,6 @@ Should NOT show `content` column.
 
 - `pkg/database/db.go` - Schema update
 - `services/fetching-service/fetch_data.go` - Removed content fetching/storage
-- `services/fetching-service/validation.go` - Added GitHub API fetching
+- `services/fetching-service/render.go` - Added GitHub API fetching
 - `migration_remove_content_column.sql` - Migration script
 - `CONTENT_COLUMN_REMOVAL.md` - This documentation

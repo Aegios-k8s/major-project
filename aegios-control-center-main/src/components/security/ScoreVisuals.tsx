@@ -2,15 +2,16 @@ import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useSecurityContext } from "@/contexts/SecurityContext";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AlertCircle } from 'lucide-react';
 
 const COLORS = {
   Good: '#29A35C', // Primary green
   Low: '#f59e0b', // Softer amber (Tailwind amber-500)
-  Critical: '#29A35C' // Changed from red to green
+  Critical: '#ef4444'
 };
 
 const ScoreVisuals = () => {
-  const { score, services, isLoading } = useSecurityContext();
+  const { score, isLoading } = useSecurityContext();
 
   if (isLoading || !score) {
     return (
@@ -35,6 +36,35 @@ const ScoreVisuals = () => {
     );
   }
 
+  if (score.total === 0) {
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="border-cyber-border bg-card glow-border">
+          <CardHeader>
+            <CardTitle className="text-green-muted">Security Status Distribution</CardTitle>
+          </CardHeader>
+          <CardContent className="h-64 flex items-center justify-center text-center">
+            <div className="space-y-2">
+              <AlertCircle className="h-10 w-10 mx-auto text-muted-foreground" />
+              <p className="text-muted-foreground">No data available. Run validation to generate findings.</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-cyber-border bg-card glow-border">
+          <CardHeader>
+            <CardTitle className="text-green-muted">Risk Levels</CardTitle>
+          </CardHeader>
+          <CardContent className="h-64 flex items-center justify-center text-center">
+            <div className="space-y-2">
+              <AlertCircle className="h-10 w-10 mx-auto text-muted-foreground" />
+              <p className="text-muted-foreground">No data available. Run validation to generate findings.</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   const pieData = [
     { name: 'Good', value: score.percentages.Good, count: score.counts.Good },
     { name: 'Low', value: score.percentages.Low, count: score.counts.Low },
@@ -42,7 +72,7 @@ const ScoreVisuals = () => {
   ].filter(item => item.value > 0);
 
   const barData = [
-    { name: 'Low Risk', count: score.counts.Low, percentage: score.percentages.Low },
+    { name: 'Low Risk', count: score.counts.Good + score.counts.Low, percentage: score.percentages.Good + score.percentages.Low },
     { name: 'Critical Risk', count: score.counts.Critical, percentage: score.percentages.Critical }
   ];
 
@@ -50,24 +80,13 @@ const ScoreVisuals = () => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       const status = data.name;
-      const servicesInCategory = services.filter(service => service.status === status);
       
       return (
         <div className="bg-card/95 border border-green-500/50 rounded-lg p-3 shadow-md backdrop-blur-sm max-w-xs">
-          <p className="text-green-400 font-semibold">{status} Services</p>
+          <p className="text-green-400 font-semibold">{status} Findings</p>
           <p className="text-sm text-muted-foreground">
-            {data.count} services ({data.value.toFixed(2)}%)
+            {data.count} findings ({data.value.toFixed(2)}%)
           </p>
-          {servicesInCategory.length > 0 && (
-            <div className="mt-2 max-h-32 overflow-y-auto">
-              <p className="text-xs text-muted-foreground mb-1">Services:</p>
-              {servicesInCategory.map((service, index) => (
-                <p key={index} className="text-xs text-foreground">
-                  {service.namespace}/{service.name}
-                </p>
-              ))}
-            </div>
-          )}
         </div>
       );
     }

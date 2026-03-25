@@ -3,7 +3,7 @@
  * Transform backend API responses to frontend types
  */
 
-import { Service, K8sScore } from '@/types/security';
+import { Service, K8sScore, K8sPostureFinding } from '@/types/security';
 
 // Backend response types
 interface BackendPostureResource {
@@ -29,15 +29,19 @@ interface BackendPostureResponse {
 }
 
 interface BackendScoreResponse {
-  total_resources: number;
-  overall_score: number;
-  max_possible_score: number;
-  overall_percentage: number;
+  total_findings: number;
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  critical_percentage: number;
+  high_percentage: number;
+  medium_percentage: number;
+  low_percentage: number;
+  security_score: number;
+  has_validation_data?: boolean;
   overall_grade: string;
-  category_scores: Record<string, any>;
-  resource_scores: any[];
-  compliance_status: string;
-  recommendations: string[];
+  criticality_level?: string;
 }
 
 /**
@@ -89,10 +93,9 @@ export function transformPostureToServices(response: BackendPostureResponse | an
  * Transform backend score response to frontend K8sScore type
  */
 export function transformScoreToK8sScore(response: BackendScoreResponse | any): K8sScore {
-  // Handle both direct response and wrapped response
-  const scoreData = response.total_resources !== undefined ? response : response;
-  
-  if (!scoreData.total_resources) {
+  const scoreData = response.total_findings !== undefined ? response : response;
+
+  if (scoreData.total_findings === undefined) {
     console.warn('⚠️ Invalid score response format:', response);
     return {
       total: 0,
@@ -103,13 +106,28 @@ export function transformScoreToK8sScore(response: BackendScoreResponse | any): 
     };
   }
 
-  const total = scoreData.total_resources;
-  
-  // Calculate counts based on percentage ranges
-  // Good: 80-100%, Low: 50-79%, Critical: 0-49%
-  const goodCount = Math.round(total * 0.4); // Approximate
-  const lowCount = Math.round(total * 0.3);
-  const criticalCount = total - goodCount - lowCount;
+  const total = Number(scoreData.total_findings || 0);
+  if (total === 0) {
+    return {
+      total: 0,
+      counts: { Good: 0, Low: 0, Critical: 0 },
+      percentages: { Good: 0, Low: 0, Critical: 0 },
+      score: 0,
+      criticality_level: 'High',
+    };
+  }
+
+  // Required mapping:
+  // Good -> low severity
+  // Low -> medium severity
+  // Critical -> high + critical severity
+  const goodCount = Number(scoreData.low || 0);
+  const lowCount = Number(scoreData.medium || 0);
+  const criticalCount = Number(scoreData.high || 0) + Number(scoreData.critical || 0);
+
+  const goodPct = Number(scoreData.low_percentage || 0);
+  const lowPct = Number(scoreData.medium_percentage || 0);
+  const criticalPct = Number(scoreData.high_percentage || 0) + Number(scoreData.critical_percentage || 0);
 
   return {
     total,
@@ -119,13 +137,78 @@ export function transformScoreToK8sScore(response: BackendScoreResponse | any): 
       Critical: criticalCount,
     },
     percentages: {
-      Good: (goodCount / total) * 100,
-      Low: (lowCount / total) * 100,
-      Critical: (criticalCount / total) * 100,
+      Good: goodPct,
+      Low: lowPct,
+      Critical: criticalPct,
     },
-    score: Math.round(scoreData.overall_percentage),
-    criticality_level: getCriticalityLevel(scoreData.overall_percentage),
+    score: Math.round(Number(scoreData.security_score || 0)),
+    criticality_level: getCriticalityLevel(Number(scoreData.security_score || 0)),
   };
+}
+
+/**
+ * Transform findings rows to Service[] so existing ServiceCard UI can be reused.
+ */
+export function transformFindingsToServices(findings: K8sPostureFinding[]): Service[] {
+  return findings.map((finding) => {
+    const severity = (finding.severity || '').toLowerCase();
+
+    let status: 'Good' | 'Low' | 'Critical';
+    if (severity === 'critical' || severity === 'high') {
+      status = 'Critical';
+    } else if (severity === 'medium' || severity === 'low') {
+      status = 'Low';
+    } else {
+      status = 'Good';
+    }
+
+    const recommendations = splitRecommendationText(finding.recommendation, finding.description);
+    const ports = extractPorts(`${finding.description || ''} ${finding.recommendation || ''}`);
+
+    return {
+      id: finding.resource_id || finding.finding_id,
+      namespace: finding.namespace || 'default',
+      name: finding.name || finding.kind || 'Unknown Resource',
+      labels: {
+        kind: finding.kind || finding.missing_kind || 'Unknown',
+        repo: finding.repo_name || 'unknown-repo',
+      },
+      status,
+      ports,
+      recommendations,
+      created_at: finding.detected_at || new Date().toISOString(),
+      metadata: {
+        finding_id: finding.finding_id,
+        resource_id: finding.resource_id,
+        severity,
+        missing_kind: finding.missing_kind,
+        description: finding.description,
+        issue_type: finding.issue_type,
+        owner: `${(finding.check_name || finding.issue_type || 'Security Check').toUpperCase()} • ${severity.toUpperCase()}`,
+      },
+    };
+  });
+}
+
+function splitRecommendationText(recommendation: string, fallbackDescription: string): string[] {
+  const raw = (recommendation || '').trim();
+  if (!raw) {
+    return fallbackDescription ? [fallbackDescription] : [];
+  }
+
+  return raw
+    .split(/\n+|\.\s+|;\s+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function extractPorts(text: string): number[] {
+  const matches = text.match(/\b\d{2,5}\b/g) || [];
+  const ports = matches
+    .map((value) => Number(value))
+    .filter((value) => Number.isInteger(value) && value > 0 && value <= 65535);
+
+  return Array.from(new Set(ports));
 }
 
 /**

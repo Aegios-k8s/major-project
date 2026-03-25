@@ -302,11 +302,11 @@ const MainDashboard = () => {
         }`}
       >
         <CardHeader>
-          <CardTitle className="text-xl text-green-muted">Run Validation</CardTitle>
+          <CardTitle className="text-xl text-green-muted">Run Render</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Perform vulnerability detection and security validation on your resources.
+            Perform vulnerability detection and security rendering on your resources.
           </p>
           <Button 
             onClick={handleValidation}
@@ -315,7 +315,7 @@ const MainDashboard = () => {
             variant="default"
           >
             <CheckCircle className="mr-2 h-4 w-4" />
-            {isLoadingValidation ? 'Running Validation...' : 'Validation'}
+            {isLoadingValidation ? 'Running Render...' : 'Render'}
           </Button>
           
           {/* Validation Report */}

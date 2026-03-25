@@ -174,7 +174,7 @@ POST /fetching-service/fetch-data
 
 ### 3. Run Validation
 ```bash
-POST /fetching-service/validation
+POST /fetching-service/rendering
 {
   "session_token": "<your-token>",
   "release_name": "my-release"
@@ -232,7 +232,7 @@ LIMIT 10;
 ## Files Modified
 
 1. `pkg/database/db.go` - Added `content` column, made `repo_file_id` nullable
-2. `services/fetching-service/validation.go` - Complete rewrite to use database
+2. `services/fetching-service/render.go` - Complete rewrite to use database
 3. `services/fetching-service/fetch_data.go` - Store file content
 4. `services/fetching-service/fetch_data_optimized.go` - Store file content
 5. `migration_add_content_column.sql` - New migration file

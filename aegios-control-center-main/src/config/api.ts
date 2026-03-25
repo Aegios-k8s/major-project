@@ -24,15 +24,17 @@ export const API_CONFIG = {
     FETCHING: {
       DASHBOARD: `${API_BASE_URL}/fetching-service/dashboard`,
       FETCH_DATA: `${API_BASE_URL}/fetching-service/fetch-data`,
-      VALIDATION: `${API_BASE_URL}/fetching-service/validation`,
+	  VALIDATION: `${API_BASE_URL}/fetching-service/rendering`,
     },
     
     // Security Service
     SECURITY: {
       POSTURE: `${API_BASE_URL}/security-service/k8s-posture`,
+      POSTURE_FINDINGS: `${API_BASE_URL}/security-service/k8s-posture-findings`,
       SCORE: `${API_BASE_URL}/security-service/k8s-score`,
       ACTIONS: `${API_BASE_URL}/security-service/k8s-action`,
       AGENTIC: `${API_BASE_URL}/security-service/k8s-agentic`,
+      VALIDATE_NAMESPACES: `${API_BASE_URL}/security-service/validate-namespaces`,
     },
   },
 };

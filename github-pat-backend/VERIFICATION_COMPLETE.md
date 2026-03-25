@@ -21,7 +21,7 @@
 - Removed all `file.Content` references
 - No errors
 
-### ✅ 4. services/fetching-service/validation.go
+### ✅ 4. services/fetching-service/render.go
 - Added `fetchHelmFilesFromGitHub()` function
 - Updated `RenderHelmAndStoreResources()` to fetch from GitHub API
 - Removed dependency on `github_files.content` column

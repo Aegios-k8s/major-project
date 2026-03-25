@@ -1,15 +1,18 @@
 import React, { createContext, useContext, useEffect, useReducer, useCallback } from 'react';
-import { Service, K8sScore, K8sResourceActions, SecurityContextType } from '@/types/security';
+import { Service, K8sScore, K8sResourceActions, SecurityContextType, K8sPostureFinding } from '@/types/security';
 import { toast } from 'sonner';
 import { API_CONFIG } from '@/config/api';
-import { getSessionToken, transformPostureToServices, transformScoreToK8sScore } from '@/lib/data-transformers';
+import { getSessionToken, transformFindingsToServices, transformPostureToServices, transformScoreToK8sScore } from '@/lib/data-transformers';
 
 interface SecurityState {
   services: Service[];
   score: K8sScore | null;
   actions: K8sResourceActions[];
+  findings: K8sPostureFinding[];
   isConnected: boolean;
   isLoading: boolean;
+  loadingValidation: boolean;
+  validationStatus: 'idle' | 'running' | 'success' | 'error';
 }
 
 type SecurityAction =
@@ -17,6 +20,9 @@ type SecurityAction =
   | { type: 'SET_SERVICES'; payload: Service[] }
   | { type: 'SET_SCORE'; payload: K8sScore }
   | { type: 'SET_ACTIONS'; payload: K8sResourceActions[] }
+  | { type: 'SET_FINDINGS'; payload: K8sPostureFinding[] }
+  | { type: 'SET_VALIDATION_LOADING'; payload: boolean }
+  | { type: 'SET_VALIDATION_STATUS'; payload: 'idle' | 'running' | 'success' | 'error' }
   | { type: 'ADD_SERVICE'; payload: Service }
   | { type: 'UPDATE_SERVICE'; payload: Service }
   | { type: 'SET_CONNECTION_STATUS'; payload: boolean };
@@ -25,8 +31,11 @@ const initialState: SecurityState = {
   services: [],
   score: null,
   actions: [],
+  findings: [],
   isConnected: false,
   isLoading: true,
+  loadingValidation: false,
+  validationStatus: 'idle',
 };
 
 const securityReducer = (state: SecurityState, action: SecurityAction): SecurityState => {
@@ -39,6 +48,12 @@ const securityReducer = (state: SecurityState, action: SecurityAction): Security
       return { ...state, score: action.payload };
     case 'SET_ACTIONS':
       return { ...state, actions: action.payload };
+    case 'SET_FINDINGS':
+      return { ...state, findings: action.payload };
+    case 'SET_VALIDATION_LOADING':
+      return { ...state, loadingValidation: action.payload };
+    case 'SET_VALIDATION_STATUS':
+      return { ...state, validationStatus: action.payload };
     case 'ADD_SERVICE':
       return { ...state, services: [...state.services, action.payload] };
     case 'UPDATE_SERVICE':
@@ -197,6 +212,111 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, []);
 
+  const fetchFindings = useCallback(async () => {
+    const sessionToken = getSessionToken();
+    if (!sessionToken) {
+      console.log('⚠️ No session token, skipping findings fetch');
+      return;
+    }
+
+    console.log('🔄 Fetching posture findings...');
+
+    try {
+      const response = await fetch(API_CONFIG.ENDPOINTS.SECURITY.POSTURE_FINDINGS, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_token: sessionToken }),
+      });
+
+      const result = await response.json();
+      console.log('📦 Findings response:', result);
+
+      if (!result.success) {
+        throw new Error(result.message || result.error || 'Failed to fetch findings');
+      }
+
+      dispatch({ type: 'SET_FINDINGS', payload: result.data?.findings || [] });
+    } catch (error) {
+      console.error('❌ Failed to fetch findings:', error);
+
+      if (getSessionToken() && !API_CONFIG.ENABLE_MOCK_DATA) {
+        toast.error('Failed to fetch posture findings');
+      }
+    }
+  }, []);
+
+  const getFindingsByCategory = useCallback((category: string) => {
+    const normalizedCategory = category.toLowerCase();
+    const issueTypeMap: Record<string, string> = {
+      'rbac': 'rbac',
+      'network-policy': 'network-policy',
+      'container-port': 'container-port',
+      'pod': 'pod',
+      'container-image': 'container-image',
+      'secrets': 'secrets',
+    };
+    const expectedIssueType = issueTypeMap[normalizedCategory];
+
+    if (!expectedIssueType) {
+      return [];
+    }
+
+    return state.findings.filter((finding) => {
+      const issueType = (finding.issue_type || '').toLowerCase().trim();
+      return issueType === expectedIssueType;
+    });
+  }, [state.findings]);
+
+  const getActionFindingsByCategory = useCallback((category: string) => {
+    const normalizedCategory = category.toLowerCase().trim();
+
+    return state.findings.filter((finding) => {
+      const issueType = (finding.issue_type || '').toLowerCase().trim();
+      const kind = (finding.kind || finding.missing_kind || '').toLowerCase().trim();
+      const details = `${finding.description || ''} ${finding.recommendation || ''} ${finding.check_name || ''}`.toLowerCase();
+
+      if (normalizedCategory === 'rbac') {
+        if (issueType === 'rbac') return true;
+        return ['role', 'clusterrole', 'rolebinding', 'clusterrolebinding', 'serviceaccount'].includes(kind) ||
+          details.includes('rbac') || details.includes('role binding');
+      }
+
+      if (normalizedCategory === 'network-policy') {
+        if (issueType === 'network-policy') return true;
+        return kind === 'networkpolicy' || details.includes('networkpolicy') || details.includes('network policy') || details.includes('ingress') || details.includes('egress');
+      }
+
+      if (normalizedCategory === 'container-port') {
+        if (issueType === 'container-port') return true;
+        return kind === 'service' || details.includes('nodeport') || details.includes('targetport') || details.includes('containerport') || details.includes('port');
+      }
+
+      if (normalizedCategory === 'pod') {
+        if (issueType === 'pod') return true;
+        return ['pod', 'deployment', 'daemonset'].includes(kind) ||
+          details.includes('privileged') || details.includes('allowprivilegeescalation') || details.includes('runasuser') || details.includes('pod security');
+      }
+
+      if (normalizedCategory === 'container-image') {
+        if (issueType === 'container-image') return true;
+        return details.includes('image') || details.includes('registry') || details.includes('latest tag') || details.includes('digest');
+      }
+
+      if (normalizedCategory === 'secrets') {
+        if (issueType === 'secrets') return true;
+        return kind === 'secret' || kind === 'configmap' ||
+          details.includes('secret') || details.includes('password') || details.includes('token') || details.includes('apikey');
+      }
+
+      return false;
+    });
+  }, [state.findings]);
+
+  const getServicesByCategory = useCallback((category: string) => {
+    const filteredFindings = getFindingsByCategory(category);
+    return transformFindingsToServices(filteredFindings);
+  }, [getFindingsByCategory]);
+
   const startPolling = useCallback(() => {
     if (pollingRef.current) return;
     
@@ -236,9 +356,9 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     console.log('🔄 Refreshing all security data...');
     dispatch({ type: 'SET_LOADING', payload: true });
-    await Promise.all([fetchServices(), fetchScore(), fetchActions()]);
+    await Promise.all([fetchServices(), fetchScore(), fetchActions(), fetchFindings()]);
     dispatch({ type: 'SET_LOADING', payload: false });
-  }, [fetchServices, fetchScore, fetchActions]);
+  }, [fetchServices, fetchScore, fetchActions, fetchFindings]);
 
   const applyAction = useCallback(async (resourceId: string, actionType: string) => {
     const sessionToken = getSessionToken();
@@ -276,6 +396,7 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       await fetchServices();
       await fetchScore();
       await fetchActions();
+      await fetchFindings();
       
       return { 
         success: true, 
@@ -293,7 +414,46 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         output: `Error: ${errorMessage}`
       };
     }
-  }, [fetchServices, fetchScore, fetchActions]);
+  }, [fetchServices, fetchScore, fetchActions, fetchFindings]);
+
+  const runValidation = useCallback(async () => {
+    const sessionToken = getSessionToken();
+    if (!sessionToken) {
+      toast.error('Not authenticated');
+      return { success: false, message: 'Not authenticated' };
+    }
+
+    dispatch({ type: 'SET_VALIDATION_LOADING', payload: true });
+    dispatch({ type: 'SET_VALIDATION_STATUS', payload: 'running' });
+
+    try {
+      const response = await fetch(API_CONFIG.ENDPOINTS.SECURITY.VALIDATE_NAMESPACES, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_token: sessionToken }),
+      });
+
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.message || result.error || 'Validation failed');
+      }
+
+      await Promise.all([fetchServices(), fetchScore(), fetchActions(), fetchFindings()]);
+
+      dispatch({ type: 'SET_VALIDATION_STATUS', payload: 'success' });
+      toast.success(result.message || 'Validation completed');
+
+      return { success: true, message: result.message || 'Validation completed' };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Validation failed';
+      dispatch({ type: 'SET_VALIDATION_STATUS', payload: 'error' });
+      toast.error(errorMessage);
+
+      return { success: false, message: errorMessage };
+    } finally {
+      dispatch({ type: 'SET_VALIDATION_LOADING', payload: false });
+    }
+  }, [fetchServices, fetchScore, fetchActions, fetchFindings]);
 
   useEffect(() => {
     const sessionToken = getSessionToken();
@@ -314,7 +474,7 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const handleLogin = async () => {
       console.log('🔔 Data fetch completed, refreshing security data...');
       dispatch({ type: 'SET_LOADING', payload: true });
-      await Promise.all([fetchServices(), fetchScore(), fetchActions()]);
+      await Promise.all([fetchServices(), fetchScore(), fetchActions(), fetchFindings()]);
       dispatch({ type: 'SET_LOADING', payload: false });
     };
     
@@ -324,19 +484,27 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       stopPolling();
       window.removeEventListener('aegios:login', handleLogin);
     };
-  }, [fetchServices, fetchScore, fetchActions, stopPolling]);
+  }, [fetchServices, fetchScore, fetchActions, fetchFindings, stopPolling]);
 
   const contextValue: SecurityContextType = {
     services: state.services,
     score: state.score,
     actions: state.actions,
+    findings: state.findings,
     isConnected: state.isConnected,
     isLoading: state.isLoading,
+    loadingValidation: state.loadingValidation,
+    validationStatus: state.validationStatus,
     updateService,
     addService,
     updateScore,
     applyAction,
+    runValidation,
     fetchActions,
+    fetchFindings,
+    getFindingsByCategory,
+    getActionFindingsByCategory,
+    getServicesByCategory,
     refreshData,
   };
 

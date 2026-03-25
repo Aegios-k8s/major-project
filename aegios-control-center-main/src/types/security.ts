@@ -46,6 +46,30 @@ export interface K8sActionsResponse {
   actions: K8sResourceActions[];
 }
 
+export type PostureCategory =
+  | 'rbac'
+  | 'network-policy'
+  | 'container-port'
+  | 'pod'
+  | 'container-image'
+  | 'secrets';
+
+export interface K8sPostureFinding {
+  finding_id: string;
+  resource_id?: string;
+  namespace: string;
+  name: string;
+  kind: string;
+  repo_name?: string;
+  missing_kind?: string;
+  issue_type: PostureCategory | string;
+  check_name?: string;
+  severity: string;
+  description: string;
+  recommendation: string;
+  detected_at: string;
+}
+
 export interface SecurityEvent {
   event: "service.created" | "service.updated" | "score.updated";
   data: Service | K8sScore;
@@ -55,12 +79,20 @@ export interface SecurityContextType {
   services: Service[];
   score: K8sScore | null;
   actions: K8sResourceActions[];
+  findings: K8sPostureFinding[];
   isConnected: boolean;
   isLoading: boolean;
+  loadingValidation: boolean;
+  validationStatus: 'idle' | 'running' | 'success' | 'error';
   updateService: (service: Service) => void;
   addService: (service: Service) => void;
   updateScore: (score: K8sScore) => void;
   applyAction: (serviceId: string, command: string) => Promise<{ success: boolean; message: string; output?: string }>;
+  runValidation: () => Promise<{ success: boolean; message: string }>;
   fetchActions: () => Promise<void>;
+  fetchFindings: () => Promise<void>;
+  getFindingsByCategory: (category: string) => K8sPostureFinding[];
+  getActionFindingsByCategory: (category: string) => K8sPostureFinding[];
+  getServicesByCategory: (category: string) => Service[];
   refreshData: () => Promise<void>;
 }

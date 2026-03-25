@@ -8,5 +8,5 @@ import (
 func RegisterRoutes(router *gin.RouterGroup) {
 	router.POST("/dashboard", Dashboard)
 	router.POST("/fetch-data", FetchDataOptimized) // Use optimized parallel version
-	router.POST("/validation", Validation)
+	router.POST("/rendering", Render)
 }

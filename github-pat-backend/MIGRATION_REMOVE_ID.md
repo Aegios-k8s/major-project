@@ -47,7 +47,7 @@ user_sessions:
 #### 3. Fetching Service
 - **dashboard.go**: Uses `credID` from `ValidateSession()` directly
 - **fetch_data_optimized.go**: Uses `credID` from `ValidateSession()` directly
-- **validation.go**: Uses `credID` from `ValidateSession()` directly
+- **render.go**: Uses `credID` from `ValidateSession()` directly
 
 #### 4. Security Service
 - **k8s_score.go**: Uses `credID` from `ValidateSession()` directly

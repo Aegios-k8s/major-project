@@ -1,7 +1,13 @@
 package database
 
 import (
+	"regexp"
 	"time"
+)
+
+var (
+	reInKindResourceName  = regexp.MustCompile(`(?i)\bin\s+[A-Za-z]+\s+'([^']+)'`)
+	reLeadingResourceName = regexp.MustCompile(`(?i)^(?:Service|ConfigMap|Secret|NetworkPolicy|Deployment|DaemonSet)\s+'([^']+)'`)
 )
 
 // Finding represents a security finding
@@ -9,12 +15,14 @@ type Finding struct {
 	ID              int
 	FindingID       string
 	OrgID           string
-	ResourceID      string
+	ResourceID      *string
 	Severity        string
 	Description     string
 	Recommendations string
 	Status          string
 	DetectedAt      time.Time
+	Namespace       *string
+	MissingKind     *string
 }
 
 // CreateFinding creates a new finding record
@@ -26,6 +34,96 @@ func CreateFinding(findingID, orgID, resourceID, severity, description, recommen
 		findingID, orgID, resourceID, severity, description, recommendations, "open",
 	)
 	return err
+}
+
+// CreateValidationFinding creates a namespace-level validation finding for missing kinds
+func CreateValidationFinding(findingID, orgID, namespace, missingKind, severity, description, recommendations string) error {
+	resolvedResourceID := resolveFindingResourceID(orgID, namespace, missingKind, description)
+
+	var resourceIDArg interface{}
+	if resolvedResourceID != "" {
+		resourceIDArg = resolvedResourceID
+	}
+
+	_, err := DB.Exec(
+		`INSERT INTO findings
+		 (finding_id, org_id, resource_id, namespace, missing_kind, severity, description, recommendations, status, detected_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())`,
+		findingID, orgID, resourceIDArg, namespace, missingKind, severity, description, recommendations, "open",
+	)
+	return err
+}
+
+// DeleteValidationFindingsByOrgID deletes all validation findings for an organization
+func DeleteValidationFindingsByOrgID(orgID string) error {
+	_, err := DB.Exec(
+		`DELETE FROM findings WHERE org_id = $1 AND missing_kind IS NOT NULL`,
+		orgID,
+	)
+	return err
+}
+
+func resolveFindingResourceID(orgID, namespace, kind, description string) string {
+	resourceName := extractResourceName(description)
+
+	if resourceName != "" {
+		var resourceID string
+		err := DB.QueryRow(
+			`SELECT resource_id
+			 FROM kubernetes_resource
+			 WHERE org_id = $1 AND namespace = $2 AND LOWER(kind) = LOWER($3) AND name = $4
+			 ORDER BY created_at DESC
+			 LIMIT 1`,
+			orgID, namespace, kind, resourceName,
+		).Scan(&resourceID)
+		if err == nil {
+			return resourceID
+		}
+	}
+
+	if namespace != "" {
+		var resourceID string
+		err := DB.QueryRow(
+			`SELECT resource_id
+			 FROM kubernetes_resource
+			 WHERE org_id = $1 AND namespace = $2
+			 ORDER BY created_at DESC
+			 LIMIT 1`,
+			orgID, namespace,
+		).Scan(&resourceID)
+		if err == nil {
+			return resourceID
+		}
+	}
+
+	var resourceID string
+	err := DB.QueryRow(
+		`SELECT resource_id
+		 FROM kubernetes_resource
+		 WHERE org_id = $1
+		 ORDER BY created_at DESC
+		 LIMIT 1`,
+		orgID,
+	).Scan(&resourceID)
+	if err == nil {
+		return resourceID
+	}
+
+	return ""
+}
+
+func extractResourceName(description string) string {
+	matches := reInKindResourceName.FindStringSubmatch(description)
+	if len(matches) > 1 {
+		return matches[1]
+	}
+
+	matches = reLeadingResourceName.FindStringSubmatch(description)
+	if len(matches) > 1 {
+		return matches[1]
+	}
+
+	return ""
 }
 
 // GetFindingByID retrieves a finding by finding_id

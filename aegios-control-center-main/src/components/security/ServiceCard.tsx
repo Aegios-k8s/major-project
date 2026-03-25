@@ -39,7 +39,16 @@ const ServiceCard = ({ service }: ServiceCardProps) => {
   };
 
   const handleViewActions = () => {
-    navigate(`/security/k8s-actions/${service.id}`);
+    const category = typeof service.metadata?.issue_type === 'string'
+      ? service.metadata.issue_type.toLowerCase()
+      : '';
+
+    if (category) {
+      navigate(`/security/k8s-action/${category}`);
+      return;
+    }
+
+    navigate('/security/k8s-action');
   };
 
   return (
@@ -111,7 +120,7 @@ const ServiceCard = ({ service }: ServiceCardProps) => {
           <div className="flex-1 p-4 rounded-lg bg-secondary/30 border border-primary">
             <div className="space-y-3">
               <p className="text-xs text-muted-foreground uppercase tracking-wide">Recommendations</p>
-              <div className="max-h-40 overflow-auto">
+              <div>
                 {service.recommendations.length > 0 ? (
                   <ul className="space-y-2">
                     {service.recommendations.map((recommendation, index) => (

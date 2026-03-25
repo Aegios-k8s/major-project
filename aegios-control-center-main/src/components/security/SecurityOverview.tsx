@@ -31,6 +31,18 @@ const SecurityOverview = () => {
     );
   }
 
+  if (score.total === 0) {
+    return (
+      <Card className="neon-border bg-card">
+        <CardContent className="p-10 text-center">
+          <AlertCircle className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+          <h3 className="text-lg font-semibold text-foreground mb-1">No Validation Data</h3>
+          <p className="text-muted-foreground">Run validation to calculate security score from findings.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   const getCriticalityColor = (level: string) => {
     switch (level) {
       case 'Low':
@@ -57,7 +69,7 @@ const SecurityOverview = () => {
     }
   };
 
-  const narrativeText = `${score.counts.Critical} services are Critical, ${score.counts.Good} Good, ${score.counts.Low} Low risk.`;
+  const narrativeText = `${score.counts.Critical} findings are Critical Risk, ${score.counts.Low} are Low Risk, ${score.counts.Good} are Good.`;
 
   return (
     <Card className="neon-border bg-card">
