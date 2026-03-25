@@ -21,6 +21,23 @@ const MainDashboard = () => {
   const location = useLocation();
   const { services, score } = useSecurityContext();
 
+  const normalizedRenderReport = validationReport
+    ? {
+        status: validationReport.status || 'Completed',
+        resourcesScanned:
+          validationReport.total_resources ??
+          validationReport.resources ??
+          validationReport.scanned_resources ??
+          0,
+        totalIssues:
+          validationReport.vulnerabilities_found ??
+          validationReport.total_issues ??
+          validationReport.findings_count ??
+          validationReport.issues ??
+          0,
+      }
+    : null;
+
   const stats = [
     
     { 
@@ -319,61 +336,29 @@ const MainDashboard = () => {
           </Button>
           
           {/* Validation Report */}
-          {validationReport && (
+          {normalizedRenderReport && (
             <div className="mt-3 p-4 bg-secondary/50 rounded-md border border-green-500/30 space-y-3">
               <h4 className="font-semibold text-green-muted">Validation Report</h4>
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
                   <span className="text-muted-foreground">Status:</span>
                   <span className="ml-2 text-green-muted font-medium">
-                    {validationReport.status || 'Completed'}
+                    {normalizedRenderReport.status}
                   </span>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Resources Scanned:</span>
                   <span className="ml-2 text-green-muted font-medium">
-                    {validationReport.total_resources || 0}
+                    {normalizedRenderReport.resourcesScanned}
                   </span>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Total Issues:</span>
                   <span className="ml-2 text-amber-400 font-medium">
-                    {validationReport.vulnerabilities_found || 0}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Critical:</span>
-                  <span className="ml-2 text-red-500 font-medium">
-                    {validationReport.summary?.critical || 0}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">High:</span>
-                  <span className="ml-2 text-orange-500 font-medium">
-                    {validationReport.summary?.high || 0}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Medium:</span>
-                  <span className="ml-2 text-yellow-500 font-medium">
-                    {validationReport.summary?.medium || 0}
+                    {normalizedRenderReport.totalIssues}
                   </span>
                 </div>
               </div>
-              {validationReport.vulnerabilities && validationReport.vulnerabilities.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-primary/20">
-                  <p className="text-xs text-muted-foreground mb-2">
-                    Top Issues Found:
-                  </p>
-                  <ul className="text-xs space-y-1">
-                    {validationReport.vulnerabilities.slice(0, 3).map((vuln: any, idx: number) => (
-                      <li key={idx} className="text-muted-foreground">
-                        • {vuln.title} ({vuln.kind}: {vuln.resource_name})
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
             </div>
           )}
         </CardContent>

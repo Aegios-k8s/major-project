@@ -11,22 +11,32 @@ import { K8sPostureFinding, K8sResourceActions } from "@/types/security";
 const CATEGORY_LABELS: Record<string, string> = {
   rbac: "RBAC",
   "network-policy": "Network Policy",
-  "container-port": "Container Port",
-  pod: "Pod",
-  "container-image": "Container Image",
+  "service-port": "Service Port",
+  "resource-limit": "Resource Limit",
+  "container-security": "Container Security",
+  "container-port": "Service Port",
+  pod: "Resource Limit",
+  "container-image": "Container Security",
   secrets: "Secrets",
 };
 
 const severityFromPriority = (priority: string): string => {
   const normalized = (priority || "").toLowerCase();
-  if (["critical", "high", "medium", "low"].includes(normalized)) {
+  if (["critical", "high", "low"].includes(normalized)) {
     return normalized;
+  }
+  if (normalized === "medium") {
+    return "low";
   }
   return "high";
 };
 
 const mapActionsToFindingCards = (category: string, resources: K8sResourceActions[]): K8sPostureFinding[] => {
   const actionCards: K8sPostureFinding[] = [];
+  const normalizedCategory = category.toLowerCase();
+  const isServicePort = normalizedCategory === "service-port" || normalizedCategory === "container-port";
+  const isResourceLimit = normalizedCategory === "resource-limit" || normalizedCategory === "pod";
+  const isContainerSecurity = normalizedCategory === "container-security" || normalizedCategory === "container-image";
 
   resources.forEach((resource) => {
     const kind = (resource.kind || "").toLowerCase();
@@ -42,14 +52,28 @@ const mapActionsToFindingCards = (category: string, resources: K8sResourceAction
       if (category === "network-policy") {
         return kind === "networkpolicy" || actionTextBlob.includes("network policy") || actionTextBlob.includes("ingress") || actionTextBlob.includes("egress");
       }
-      if (category === "container-port") {
+      if (isServicePort) {
         return kind === "service" || actionTextBlob.includes("port") || actionTextBlob.includes("nodeport") || actionTextBlob.includes("targetport");
       }
-      if (category === "pod") {
-        return ["pod", "deployment", "daemonset"].includes(kind) || actionTextBlob.includes("pod security") || actionTextBlob.includes("privileged");
+      if (isResourceLimit) {
+        return kind === "deployment" ||
+          actionTextBlob.includes("resource configuration") ||
+          actionTextBlob.includes("resource requests") ||
+          actionTextBlob.includes("resource limits") ||
+          actionTextBlob.includes("requests.cpu") ||
+          actionTextBlob.includes("limits.cpu") ||
+          actionTextBlob.includes("requests.memory") ||
+          actionTextBlob.includes("limits.memory");
       }
-      if (category === "container-image") {
-        return actionTextBlob.includes("image") || actionTextBlob.includes("tag") || actionTextBlob.includes("registry");
+      if (isContainerSecurity) {
+        return actionTextBlob.includes("privileged") ||
+          actionTextBlob.includes("runasuser") ||
+          actionTextBlob.includes("running as root") ||
+          actionTextBlob.includes("allow privilege escalation") ||
+          actionTextBlob.includes("allowprivilegeescalation") ||
+          actionTextBlob.includes("image") ||
+          actionTextBlob.includes("tag") ||
+          actionTextBlob.includes("registry");
       }
       if (category === "secrets") {
         return ["secret", "configmap"].includes(kind) || actionTextBlob.includes("secret") || actionTextBlob.includes("password") || actionTextBlob.includes("token");
@@ -108,7 +132,12 @@ const K8sActionCategoryPage = () => {
 
   const criticalCount = findings.filter((finding) => {
     const severity = (finding.severity || "").toLowerCase();
-    return severity === "critical" || severity === "high";
+    return severity === "critical";
+  }).length;
+
+  const highCount = findings.filter((finding) => {
+    const severity = (finding.severity || "").toLowerCase();
+    return severity === "high";
   }).length;
 
   const lowCount = findings.filter((finding) => {
@@ -173,7 +202,9 @@ const K8sActionCategoryPage = () => {
         <span>•</span>
         <span>Critical: <span className="text-red-400 font-semibold">{criticalCount}</span></span>
         <span>•</span>
-        <span>Low Risk: <span className="text-yellow-300 font-semibold">{lowCount}</span></span>
+        <span>High: <span className="text-orange-300 font-semibold">{highCount}</span></span>
+        <span>•</span>
+        <span>Low: <span className="text-yellow-300 font-semibold">{lowCount}</span></span>
       </div>
 
       {findings.length === 0 ? (

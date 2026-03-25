@@ -145,8 +145,7 @@ func deriveIssueType(kind, missingKind, description, recommendation string) stri
 	blob := strings.ToLower(strings.Join([]string{kindLower, missingKindLower, desc, reco}, " "))
 
 	// 1) RBAC check: missing required access-control kinds from validation checks.
-	switch missingKindLower {
-	case "role", "clusterrole", "rolebinding", "clusterrolebinding", "serviceaccount":
+	if strings.Contains(blob, "rbac") || strings.Contains(blob, "rolebinding") || strings.Contains(blob, "clusterrole") {
 		return "rbac"
 	}
 
@@ -155,9 +154,9 @@ func deriveIssueType(kind, missingKind, description, recommendation string) stri
 		return "network-policy"
 	}
 
-	// 3) Service exposure check (container port page in UI).
+	// 3) Service exposure check.
 	if missingKindLower == "service" || strings.Contains(blob, "targetport") || strings.Contains(blob, "containerport") || strings.Contains(blob, "nodeport") || strings.Contains(blob, "loadbalancer") || strings.Contains(blob, "exposed") {
-		return "container-port"
+		return "service-port"
 	}
 
 	// 4) Secret misconfiguration checks.
@@ -167,15 +166,15 @@ func deriveIssueType(kind, missingKind, description, recommendation string) stri
 
 	// 5) Container security checks.
 	if strings.Contains(desc, "privileged mode") || strings.Contains(desc, "running as root") || strings.Contains(desc, "allow privilege escalation") || strings.Contains(desc, "allows privilege escalation") || strings.Contains(blob, "runasuser") {
-		return "container-image"
+		return "container-security"
 	}
 
-	// 6) Resource misconfiguration check (mapped to Pod page in UI).
+	// 6) Resource misconfiguration check.
 	if strings.Contains(desc, "resource configuration") || strings.Contains(desc, "resource requests") || strings.Contains(desc, "resource limits") || strings.Contains(desc, "requests.cpu") || strings.Contains(desc, "limits.cpu") || strings.Contains(desc, "requests.memory") || strings.Contains(desc, "limits.memory") || missingKindLower == "deployment" {
-		return "pod"
+		return "resource-limit"
 	}
 
-	return "pod"
+	return "resource-limit"
 }
 
 func getCheckName(issueType string) string {
@@ -184,13 +183,13 @@ func getCheckName(issueType string) string {
 		return "RBAC Check"
 	case "network-policy":
 		return "Network Policy Check"
-	case "container-port":
+	case "service-port":
 		return "Service Exposure Check"
-	case "container-image":
+	case "container-security":
 		return "Container Security Check"
 	case "secrets":
 		return "Secret Misconfiguration Check"
-	case "pod":
+	case "resource-limit":
 		return "Resource Misconfiguration Check"
 	default:
 		return "Security Check"

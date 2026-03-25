@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { AlertCircle, CheckCircle, AlertTriangle, ChevronDown, ChevronRight, Play, Eye } from "lucide-react";
+import { AlertCircle, AlertTriangle, ChevronDown, ChevronRight, Play, Eye } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -103,8 +103,8 @@ const K8sActionsPage = () => {
       service: selectedService.name,
       namespace: selectedService.namespace,
       command: command.trim(),
-      impact: commandLower.includes('delete') ? 'HIGH' : 
-              commandLower.includes('scale') || commandLower.includes('update') ? 'MEDIUM' : 'LOW',
+          impact: commandLower.includes('delete') ? 'CRITICAL' : 
+            commandLower.includes('scale') || commandLower.includes('update') ? 'HIGH' : 'LOW',
       warnings: warnings.length > 0 ? warnings : ['✓ No major warnings detected'],
     });
     setShowPreview(true);
@@ -137,10 +137,10 @@ const K8sActionsPage = () => {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'Good':
-        return <CheckCircle className="h-3 w-3 text-primary" />;
       case 'Low':
         return <AlertTriangle className="h-3 w-3 text-yellow-500" />;
+      case 'High':
+        return <AlertTriangle className="h-3 w-3 text-orange-500" />;
       case 'Critical':
         return <AlertCircle className="h-3 w-3 text-destructive" />;
       default:
@@ -150,10 +150,10 @@ const K8sActionsPage = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'Good':
-        return 'bg-primary/20 text-primary border-primary';
       case 'Low':
         return 'bg-yellow-500/20 text-yellow-500 border-yellow-500';
+      case 'High':
+        return 'bg-orange-500/20 text-orange-500 border-orange-500';
       case 'Critical':
         return 'bg-destructive/20 text-destructive border-destructive';
       default:
@@ -500,8 +500,8 @@ const K8sActionsPage = () => {
               <div className="p-4 rounded-lg bg-secondary/30 neon-border">
                 <h4 className="text-sm font-semibold text-primary mb-2">Impact Level</h4>
                 <Badge className={`
+                  ${previewData.impact === 'CRITICAL' ? 'bg-destructive/20 text-destructive border-destructive' : ''}
                   ${previewData.impact === 'HIGH' ? 'bg-destructive/20 text-destructive border-destructive' : ''}
-                  ${previewData.impact === 'MEDIUM' ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500' : ''}
                   ${previewData.impact === 'LOW' ? 'bg-primary/20 text-primary border-primary' : ''}
                 `}>
                   {previewData.impact}

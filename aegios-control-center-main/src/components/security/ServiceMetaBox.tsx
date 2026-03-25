@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, AlertTriangle, AlertCircle } from "lucide-react";
+import { AlertTriangle, AlertCircle } from "lucide-react";
 
 interface ServiceMetaBoxProps {
   title: string;
@@ -30,16 +30,16 @@ interface ServiceMetaRowProps {
   namespace: string;
   name: string;
   labels: Record<string, string>;
-  status: "Good" | "Low" | "Critical";
+  status: "Low" | "High" | "Critical";
 }
 
 const ServiceMetaRow = ({ namespace, name, labels, status }: ServiceMetaRowProps) => {
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'Good':
-        return 'bg-primary/20 text-primary border-primary';
       case 'Low':
         return 'bg-yellow-500/20 text-yellow-500 border-yellow-500';
+      case 'High':
+        return 'bg-orange-500/20 text-orange-500 border-orange-500';
       case 'Critical':
         return 'bg-destructive/20 text-destructive border-destructive';
       default:
@@ -49,9 +49,9 @@ const ServiceMetaRow = ({ namespace, name, labels, status }: ServiceMetaRowProps
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'Good':
-        return <CheckCircle className="h-4 w-4" />;
       case 'Low':
+        return <AlertTriangle className="h-4 w-4" />;
+      case 'High':
         return <AlertTriangle className="h-4 w-4" />;
       case 'Critical':
         return <AlertCircle className="h-4 w-4" />;

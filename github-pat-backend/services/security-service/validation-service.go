@@ -78,13 +78,6 @@ func ValidateNamespaces(c *gin.Context) {
 		fmt.Printf("⚠️ Failed to delete old validation findings: %v\n", err)
 	}
 
-	// Use database time as a stable cutoff to keep findings created during this run.
-	validationStartedAt, err := getCurrentDatabaseTime()
-	if err != nil {
-		response.InternalError(c, "failed to initialize validation window", err)
-		return
-	}
-
 	// Execute validation workflow
 	validationResults, err := validateResources(orgID)
 	if err != nil {
@@ -92,10 +85,13 @@ func ValidateNamespaces(c *gin.Context) {
 		return
 	}
 
-	// Record findings for missing kinds
-	totalFindings, err := recordValidationFindings(orgID, validationResults, validationStartedAt)
+	// Findings are recorded by the active security checks in runSecurityChecks.
+	// We intentionally avoid recording missing-kind findings so posture/action/score
+	// are driven only by implemented security checks.
+	totalFindings, err := countValidationFindingsByOrgID(orgID)
 	if err != nil {
-		fmt.Printf("⚠️ Failed to record some findings: %v\n", err)
+		fmt.Printf("⚠️ Failed to count validation findings: %v\n", err)
+		totalFindings = 0
 	}
 
 	response.Success(c, http.StatusOK, "namespace validation completed", gin.H{
@@ -104,6 +100,18 @@ func ValidateNamespaces(c *gin.Context) {
 		"validation_results": validationResults,
 		"findings_recorded":  totalFindings,
 	})
+}
+
+func countValidationFindingsByOrgID(orgID string) (int, error) {
+	var count int
+	err := database.DB.QueryRow(`
+		SELECT COUNT(*)
+		FROM findings
+		WHERE org_id = $1
+		  AND missing_kind IS NOT NULL
+	`, orgID).Scan(&count)
+
+	return count, err
 }
 
 func getCurrentDatabaseTime() (time.Time, error) {
@@ -414,11 +422,11 @@ func getRecommendationsForMissingKind(kind, namespace string) string {
 	recommendations := map[string]string{
 		"Role": fmt.Sprintf("Create a Role in namespace '%s' to define permissions for resources within the namespace. Roles are essential for implementing least-privilege access control.", namespace),
 
-		"ClusterRole": fmt.Sprintf("Create a ClusterRole to define cluster-wide permissions. ClusterRoles are required for accessing cluster-scoped resources or for permissions that span multiple namespaces."),
+		"ClusterRole": "Create a ClusterRole to define cluster-wide permissions. ClusterRoles are required for accessing cluster-scoped resources or for permissions that span multiple namespaces.",
 
 		"RoleBinding": fmt.Sprintf("Create a RoleBinding in namespace '%s' to bind a Role to users, groups, or service accounts. RoleBindings are required to grant the permissions defined in Roles.", namespace),
 
-		"ClusterRoleBinding": fmt.Sprintf("Create a ClusterRoleBinding to bind a ClusterRole to users, groups, or service accounts at the cluster level. This is required for granting cluster-wide permissions. "),
+		"ClusterRoleBinding": "Create a ClusterRoleBinding to bind a ClusterRole to users, groups, or service accounts at the cluster level. This is required for granting cluster-wide permissions.",
 
 		"ServiceAccount": fmt.Sprintf("Create a ServiceAccount in namespace '%s' to provide an identity for processes running in Pods. ServiceAccounts are essential for pod-to-API-server authentication and authorization.", namespace),
 
@@ -448,6 +456,7 @@ func runSecurityChecks(orgID string, namespace string, kindMap KindMap) {
 	checkContainerSecurity(orgID, namespace, kindMap)
 	checkServiceExposure(orgID, namespace, kindMap)
 	checkNetworkPolicy(orgID, namespace, kindMap)
+	checkRBAC(orgID, namespace, kindMap)
 }
 
 // checkResourceMisconfiguration checks Deployment resources for resource configuration issues
@@ -1004,6 +1013,9 @@ func checkNetworkPolicy(orgID, namespace string, kindMap KindMap) {
 	}
 
 	if len(policies) == 0 {
+		description := "No NetworkPolicy found in namespace. Traffic may remain unrestricted by default."
+		recommendation := "Create NetworkPolicy resources to enforce ingress and egress restrictions for workloads in this namespace."
+		createNetworkPolicyFinding(orgID, namespace, "medium", description, recommendation)
 		return
 	}
 
@@ -1027,6 +1039,106 @@ func checkNetworkPolicy(orgID, namespace string, kindMap KindMap) {
 			createNetworkPolicyFinding(orgID, namespace, "high", description, recommendation)
 		}
 	}
+}
+
+// checkRBAC checks Role/ClusterRole rules for wildcard permissions.
+func checkRBAC(orgID, namespace string, kindMap KindMap) {
+	rbacResources := make([]Resource, 0)
+	rbacResources = append(rbacResources, getKindResources(kindMap, "Role")...)
+	rbacResources = append(rbacResources, getKindResources(kindMap, "ClusterRole")...)
+
+	if len(rbacResources) == 0 {
+		return
+	}
+
+	for _, resource := range rbacResources {
+		rulesInterface, hasRules := resource.YAMLContent["rules"]
+		if !hasRules || rulesInterface == nil {
+			continue
+		}
+
+		rules, ok := rulesInterface.([]interface{})
+		if !ok {
+			continue
+		}
+
+		for _, ruleInterface := range rules {
+			ruleMap, ok := ruleInterface.(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			if hasWildcardRuleValues(ruleMap, "verbs") {
+				description := fmt.Sprintf("%s '%s' has wildcard verb '*' in RBAC rule, allowing overly broad actions.", resource.Kind, resource.Name)
+				recommendation := "Restrict verbs to only required operations (for example: get, list, watch, update) and avoid '*'."
+				createRBACFinding(orgID, namespace, resource.Kind, "high", description, recommendation)
+			}
+
+			if hasWildcardRuleValues(ruleMap, "resources") {
+				description := fmt.Sprintf("%s '%s' has wildcard resource '*' in RBAC rule, allowing access to all resources.", resource.Kind, resource.Name)
+				recommendation := "Restrict resources to specific required resource types and avoid '*'."
+				createRBACFinding(orgID, namespace, resource.Kind, "high", description, recommendation)
+			}
+
+			if hasWildcardRuleValues(ruleMap, "apiGroups") {
+				description := fmt.Sprintf("%s '%s' has wildcard apiGroup '*' in RBAC rule, allowing access across all API groups.", resource.Kind, resource.Name)
+				recommendation := "Restrict apiGroups to explicitly required groups and avoid '*'."
+				createRBACFinding(orgID, namespace, resource.Kind, "high", description, recommendation)
+			}
+		}
+	}
+}
+
+func hasWildcardRuleValues(ruleMap map[string]interface{}, field string) bool {
+	valuesInterface, exists := ruleMap[field]
+	if !exists || valuesInterface == nil {
+		return false
+	}
+
+	values, ok := valuesInterface.([]interface{})
+	if !ok {
+		return false
+	}
+
+	for _, value := range values {
+		if containsWildcard(value) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func containsWildcard(value interface{}) bool {
+	switch typed := value.(type) {
+	case string:
+		return strings.TrimSpace(typed) == "*"
+	case fmt.Stringer:
+		return strings.TrimSpace(typed.String()) == "*"
+	default:
+		return strings.TrimSpace(fmt.Sprintf("%v", typed)) == "*"
+	}
+}
+
+func createRBACFinding(orgID, namespace, kind, severity, description, recommendation string) {
+	findingID := generateFindingID()
+
+	err := database.CreateValidationFinding(
+		findingID,
+		orgID,
+		namespace,
+		kind,
+		severity,
+		description,
+		recommendation,
+	)
+
+	if err != nil {
+		fmt.Printf("❌ Failed to create RBAC finding for kind %s: %v\n", kind, err)
+		return
+	}
+
+	fmt.Printf("✅ Recorded RBAC finding: %s (severity: %s)\n", kind, severity)
 }
 
 func isOpenPolicyRuleSet(value interface{}) bool {

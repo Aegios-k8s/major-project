@@ -253,7 +253,7 @@ func RenderHelmAndStoreResources(orgID string, release string) (int, error) {
 	if totalResources == 0 {
 		return 0, fmt.Errorf("no resources were rendered and stored")
 	}
-
+  
 	return totalResources, nil
 }
 
@@ -441,7 +441,7 @@ func InsertK8sResources(orgID string, resources []K8sResourceItem) (int, error) 
 	}
 
 	for _, res := range resources {
-		resourceID := generateK8sResourceID(res.Kind, res.Name, res.Namespace)
+		resourceID := generateK8sResourceID(orgID, res.Kind, res.Name, res.Namespace)
 		repoFileID := resolveRepoFileID(res.SourceFile, repoFilePathMap)
 
 		var repoFileIDArg interface{}
@@ -481,8 +481,8 @@ func InsertK8sResources(orgID string, resources []K8sResourceItem) (int, error) 
 	return inserted, nil
 }
 
-func generateK8sResourceID(kind, name, namespace string) string {
-	input := fmt.Sprintf("%s|%s|%s|%d", kind, name, namespace, time.Now().UnixNano())
+func generateK8sResourceID(orgID, kind, name, namespace string) string {
+	input := fmt.Sprintf("%s|%s|%s|%s", orgID, strings.ToLower(kind), strings.ToLower(name), strings.ToLower(namespace))
 	hash := uint32(0)
 	for _, char := range input {
 		hash = hash*31 + uint32(char)

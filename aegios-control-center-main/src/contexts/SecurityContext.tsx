@@ -247,28 +247,34 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const getFindingsByCategory = useCallback((category: string) => {
     const normalizedCategory = category.toLowerCase();
-    const issueTypeMap: Record<string, string> = {
-      'rbac': 'rbac',
-      'network-policy': 'network-policy',
-      'container-port': 'container-port',
-      'pod': 'pod',
-      'container-image': 'container-image',
-      'secrets': 'secrets',
+    const issueTypeMap: Record<string, string[]> = {
+      'rbac': ['rbac'],
+      'network-policy': ['network-policy'],
+      'service-port': ['service-port', 'container-port'],
+      'resource-limit': ['resource-limit', 'pod'],
+      'container-security': ['container-security', 'container-image'],
+      'container-port': ['service-port', 'container-port'],
+      'pod': ['resource-limit', 'pod'],
+      'container-image': ['container-security', 'container-image'],
+      'secrets': ['secrets'],
     };
-    const expectedIssueType = issueTypeMap[normalizedCategory];
+    const expectedIssueTypes = issueTypeMap[normalizedCategory];
 
-    if (!expectedIssueType) {
+    if (!expectedIssueTypes || expectedIssueTypes.length === 0) {
       return [];
     }
 
     return state.findings.filter((finding) => {
       const issueType = (finding.issue_type || '').toLowerCase().trim();
-      return issueType === expectedIssueType;
+      return expectedIssueTypes.includes(issueType);
     });
   }, [state.findings]);
 
   const getActionFindingsByCategory = useCallback((category: string) => {
     const normalizedCategory = category.toLowerCase().trim();
+    const isServicePort = normalizedCategory === 'service-port' || normalizedCategory === 'container-port';
+    const isResourceLimit = normalizedCategory === 'resource-limit' || normalizedCategory === 'pod';
+    const isContainerSecurity = normalizedCategory === 'container-security' || normalizedCategory === 'container-image';
 
     return state.findings.filter((finding) => {
       const issueType = (finding.issue_type || '').toLowerCase().trim();
@@ -286,20 +292,34 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return kind === 'networkpolicy' || details.includes('networkpolicy') || details.includes('network policy') || details.includes('ingress') || details.includes('egress');
       }
 
-      if (normalizedCategory === 'container-port') {
-        if (issueType === 'container-port') return true;
+      if (isServicePort) {
+        if (issueType === 'service-port' || issueType === 'container-port') return true;
         return kind === 'service' || details.includes('nodeport') || details.includes('targetport') || details.includes('containerport') || details.includes('port');
       }
 
-      if (normalizedCategory === 'pod') {
-        if (issueType === 'pod') return true;
-        return ['pod', 'deployment', 'daemonset'].includes(kind) ||
-          details.includes('privileged') || details.includes('allowprivilegeescalation') || details.includes('runasuser') || details.includes('pod security');
+      if (isResourceLimit) {
+        if (issueType === 'resource-limit' || issueType === 'pod') return true;
+        return kind === 'deployment' ||
+          details.includes('resource configuration') ||
+          details.includes('resource requests') ||
+          details.includes('resource limits') ||
+          details.includes('requests.cpu') ||
+          details.includes('limits.cpu') ||
+          details.includes('requests.memory') ||
+          details.includes('limits.memory');
       }
 
-      if (normalizedCategory === 'container-image') {
-        if (issueType === 'container-image') return true;
-        return details.includes('image') || details.includes('registry') || details.includes('latest tag') || details.includes('digest');
+      if (isContainerSecurity) {
+        if (issueType === 'container-security' || issueType === 'container-image') return true;
+        return details.includes('privileged') ||
+          details.includes('running as root') ||
+          details.includes('runasuser') ||
+          details.includes('allow privilege escalation') ||
+          details.includes('allowprivilegeescalation') ||
+          details.includes('image') ||
+          details.includes('registry') ||
+          details.includes('latest tag') ||
+          details.includes('digest');
       }
 
       if (normalizedCategory === 'secrets') {

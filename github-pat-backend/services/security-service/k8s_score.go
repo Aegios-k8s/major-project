@@ -126,8 +126,8 @@ func calculateSecurityScore(findings []findingSeverityRow) ScoreResponse {
 			highCount++
 			totalWeight += 3
 		case "medium":
-			mediumCount++
-			totalWeight += 2
+			lowCount++
+			totalWeight += 1
 		default:
 			lowCount++
 			totalWeight += 1
@@ -140,7 +140,7 @@ func calculateSecurityScore(findings []findingSeverityRow) ScoreResponse {
 
 	criticalPct := roundToTwo((float64(criticalCount) / float64(totalFindings)) * 100.0)
 	highPct := roundToTwo((float64(highCount) / float64(totalFindings)) * 100.0)
-	mediumPct := roundToTwo((float64(mediumCount) / float64(totalFindings)) * 100.0)
+	mediumPct := 0.0
 	lowPct := roundToTwo((float64(lowCount) / float64(totalFindings)) * 100.0)
 
 	return ScoreResponse{

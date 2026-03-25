@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useSecurityContext } from "@/contexts/SecurityContext";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Shield, AlertTriangle, CheckCircle } from "lucide-react";
+import { Shield, AlertCircle, CheckCircle } from "lucide-react";
 
 const Scoreboard = () => {
   const { score, isLoading } = useSecurityContext();
@@ -26,9 +26,9 @@ const Scoreboard = () => {
     switch (level) {
       case 'Low':
         return 'text-primary';
-      case 'Medium':
-        return 'text-yellow-500';
       case 'High':
+        return 'text-orange-500';
+      case 'Critical':
         return 'text-destructive';
       default:
         return 'text-muted-foreground';
@@ -39,9 +39,9 @@ const Scoreboard = () => {
     switch (level) {
       case 'Low':
         return <CheckCircle className="h-5 w-5 text-primary" />;
-      case 'Medium':
-        return <AlertTriangle className="h-5 w-5 text-yellow-500" />;
       case 'High':
+        return <AlertCircle className="h-5 w-5 text-orange-500" />;
+      case 'Critical':
         return <Shield className="h-5 w-5 text-destructive" />;
       default:
         return <Shield className="h-5 w-5 text-muted-foreground" />;
@@ -81,22 +81,22 @@ const Scoreboard = () => {
         <div className="space-y-3">
           <p className="text-center text-foreground">
             <span className="text-destructive font-semibold">{score.counts.Critical}</span> services are Critical,{' '}
-            <span className="text-primary font-semibold">{score.counts.Good}</span> Good,{' '}
-            <span className="text-yellow-500 font-semibold">{score.counts.Low}</span> Low risk.
+            <span className="text-orange-500 font-semibold">{score.counts.High}</span> High,{' '}
+            <span className="text-yellow-500 font-semibold">{score.counts.Low}</span> Low.
           </p>
           
           <div className="grid grid-cols-3 gap-4 text-center">
             <div className="space-y-1">
-              <div className="text-2xl font-bold text-primary glow-text">
-                {score.counts.Good}
-              </div>
-              <div className="text-xs text-muted-foreground">Good</div>
-            </div>
-            <div className="space-y-1">
               <div className="text-2xl font-bold text-yellow-500">
                 {score.counts.Low}
               </div>
-              <div className="text-xs text-muted-foreground">Low Risk</div>
+              <div className="text-xs text-muted-foreground">Low</div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-2xl font-bold text-orange-500">
+                {score.counts.High}
+              </div>
+              <div className="text-xs text-muted-foreground">High</div>
             </div>
             <div className="space-y-1">
               <div className="text-2xl font-bold text-destructive">

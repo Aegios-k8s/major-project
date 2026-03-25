@@ -58,13 +58,13 @@ export function transformPostureToServices(response: BackendPostureResponse | an
 
   return postureData.resources.map((resource: BackendPostureResource) => {
     // Map severity to status
-    let status: 'Good' | 'Low' | 'Critical';
-    if (resource.severity === 'critical' || resource.severity === 'high') {
+    let status: 'Low' | 'High' | 'Critical';
+    if (resource.severity === 'critical') {
       status = 'Critical';
-    } else if (resource.severity === 'medium' || resource.severity === 'low') {
-      status = 'Low';
+    } else if (resource.severity === 'high') {
+      status = 'High';
     } else {
-      status = 'Good';
+      status = 'Low';
     }
 
     return {
@@ -99,10 +99,10 @@ export function transformScoreToK8sScore(response: BackendScoreResponse | any): 
     console.warn('⚠️ Invalid score response format:', response);
     return {
       total: 0,
-      counts: { Good: 0, Low: 0, Critical: 0 },
-      percentages: { Good: 0, Low: 0, Critical: 0 },
+      counts: { Low: 0, High: 0, Critical: 0 },
+      percentages: { Low: 0, High: 0, Critical: 0 },
       score: 0,
-      criticality_level: 'High',
+      criticality_level: 'Critical',
     };
   }
 
@@ -110,35 +110,35 @@ export function transformScoreToK8sScore(response: BackendScoreResponse | any): 
   if (total === 0) {
     return {
       total: 0,
-      counts: { Good: 0, Low: 0, Critical: 0 },
-      percentages: { Good: 0, Low: 0, Critical: 0 },
+      counts: { Low: 0, High: 0, Critical: 0 },
+      percentages: { Low: 0, High: 0, Critical: 0 },
       score: 0,
-      criticality_level: 'High',
+      criticality_level: 'Critical',
     };
   }
 
-  // Required mapping:
-  // Good -> low severity
-  // Low -> medium severity
-  // Critical -> high + critical severity
-  const goodCount = Number(scoreData.low || 0);
-  const lowCount = Number(scoreData.medium || 0);
-  const criticalCount = Number(scoreData.high || 0) + Number(scoreData.critical || 0);
+  // Keep only 3 buckets in UI:
+  // Low -> low + medium severities
+  // High -> high severities
+  // Critical -> critical severities
+  const lowCount = Number(scoreData.low || 0) + Number(scoreData.medium || 0);
+  const highCount = Number(scoreData.high || 0);
+  const criticalCount = Number(scoreData.critical || 0);
 
-  const goodPct = Number(scoreData.low_percentage || 0);
-  const lowPct = Number(scoreData.medium_percentage || 0);
-  const criticalPct = Number(scoreData.high_percentage || 0) + Number(scoreData.critical_percentage || 0);
+  const lowPct = Number(scoreData.low_percentage || 0) + Number(scoreData.medium_percentage || 0);
+  const highPct = Number(scoreData.high_percentage || 0);
+  const criticalPct = Number(scoreData.critical_percentage || 0);
 
   return {
     total,
     counts: {
-      Good: goodCount,
       Low: lowCount,
+      High: highCount,
       Critical: criticalCount,
     },
     percentages: {
-      Good: goodPct,
       Low: lowPct,
+      High: highPct,
       Critical: criticalPct,
     },
     score: Math.round(Number(scoreData.security_score || 0)),
@@ -153,13 +153,13 @@ export function transformFindingsToServices(findings: K8sPostureFinding[]): Serv
   return findings.map((finding) => {
     const severity = (finding.severity || '').toLowerCase();
 
-    let status: 'Good' | 'Low' | 'Critical';
-    if (severity === 'critical' || severity === 'high') {
+    let status: 'Low' | 'High' | 'Critical';
+    if (severity === 'critical') {
       status = 'Critical';
-    } else if (severity === 'medium' || severity === 'low') {
-      status = 'Low';
+    } else if (severity === 'high') {
+      status = 'High';
     } else {
-      status = 'Good';
+      status = 'Low';
     }
 
     const recommendations = splitRecommendationText(finding.recommendation, finding.description);
@@ -214,10 +214,10 @@ function extractPorts(text: string): number[] {
 /**
  * Get criticality level based on score percentage
  */
-function getCriticalityLevel(percentage: number): 'Low' | 'Medium' | 'High' {
+function getCriticalityLevel(percentage: number): 'Low' | 'High' | 'Critical' {
   if (percentage >= 80) return 'Low';
-  if (percentage >= 60) return 'Medium';
-  return 'High';
+  if (percentage >= 60) return 'High';
+  return 'Critical';
 }
 
 /**

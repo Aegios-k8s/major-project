@@ -11,17 +11,17 @@ interface ActionCardProps {
   onApply: (finding: K8sPostureFinding, command: string) => Promise<{ success: boolean; message: string }>;
 }
 
-const severityToStatus = (severity: string): "Good" | "Low" | "Critical" => {
+const severityToStatus = (severity: string): "Low" | "High" | "Critical" => {
   const normalized = (severity || "").toLowerCase();
-  if (normalized === "critical" || normalized === "high") return "Critical";
-  if (normalized === "medium" || normalized === "low") return "Low";
-  return "Good";
+  if (normalized === "critical") return "Critical";
+  if (normalized === "high") return "High";
+  return "Low";
 };
 
 const statusClassMap: Record<string, string> = {
   Critical: "bg-red-500/10 text-red-400 border-red-500/50",
+  High: "bg-orange-500/10 text-orange-300 border-orange-500/50",
   Low: "bg-yellow-500/10 text-yellow-300 border-yellow-500/50",
-  Good: "bg-green-500/10 text-green-400 border-green-500/50",
 };
 
 const ActionCard = ({ finding, onApply }: ActionCardProps) => {
@@ -38,6 +38,15 @@ const ActionCard = ({ finding, onApply }: ActionCardProps) => {
       .filter((value) => Number.isInteger(value) && value > 0 && value <= 65535);
     return Array.from(new Set(ports));
   }, [finding.description, finding.recommendation]);
+
+  const issueType = (finding.issue_type || "").toLowerCase();
+  const checkName = (finding.check_name || "").toLowerCase();
+  const kind = (finding.kind || finding.missing_kind || "").toLowerCase();
+  const shouldShowPorts = currentPorts.length > 0 && (
+    issueType === "container-port" ||
+    checkName.includes("service exposure") ||
+    kind === "service"
+  );
 
   const handleApply = async () => {
     const trimmedCommand = command.trim();
@@ -86,10 +95,10 @@ const ActionCard = ({ finding, onApply }: ActionCardProps) => {
         </div>
 
         <div className="rounded-lg border border-green-500/40 bg-green-500/5 p-4 space-y-2">
-          <p className="text-xs uppercase tracking-wide text-green-500/80">Current Status</p>
+          <p className="text-xs uppercase tracking-wide text-green-500/80">Current Config</p>
           <p className="text-sm text-green-200">{finding.description || "No issue details available."}</p>
-          {currentPorts.length > 0 && (
-            <p className="text-sm text-green-300">ports: {currentPorts.join(", ")}</p>
+          {shouldShowPorts && (
+            <p className="text-sm text-green-300">Exposed Ports: {currentPorts.join(", ")}</p>
           )}
         </div>
 

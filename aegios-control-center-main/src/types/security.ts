@@ -3,7 +3,7 @@ export interface Service {
   namespace: string;
   name: string;
   labels: Record<string, string>;
-  status: "Good" | "Low" | "Critical";
+  status: "Low" | "High" | "Critical";
   ports: number[];
   recommendations: string[];
   created_at: string;
@@ -13,17 +13,17 @@ export interface Service {
 export interface K8sScore {
   total: number;
   counts: {
-    Good: number;
     Low: number;
+    High: number;
     Critical: number;
   };
   percentages: {
-    Good: number;
     Low: number;
+    High: number;
     Critical: number;
   };
   score: number;
-  criticality_level: "Low" | "Medium" | "High";
+  criticality_level: "Low" | "High" | "Critical";
 }
 
 export interface K8sAction {
@@ -49,6 +49,9 @@ export interface K8sActionsResponse {
 export type PostureCategory =
   | 'rbac'
   | 'network-policy'
+  | 'service-port'
+  | 'resource-limit'
+  | 'container-security'
   | 'container-port'
   | 'pod'
   | 'container-image'

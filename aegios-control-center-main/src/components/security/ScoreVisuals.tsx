@@ -5,8 +5,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle } from 'lucide-react';
 
 const COLORS = {
-  Good: '#29A35C', // Primary green
-  Low: '#f59e0b', // Softer amber (Tailwind amber-500)
+  Low: '#f59e0b',
+  High: '#fb923c',
   Critical: '#ef4444'
 };
 
@@ -66,14 +66,15 @@ const ScoreVisuals = () => {
   }
 
   const pieData = [
-    { name: 'Good', value: score.percentages.Good, count: score.counts.Good },
-    { name: 'Low', value: score.percentages.Low, count: score.counts.Low },
-    { name: 'Critical', value: score.percentages.Critical, count: score.counts.Critical }
+    { name: 'Low', value: score.percentages.Low, count: score.counts.Low, colorKey: 'Low' },
+    { name: 'High', value: score.percentages.High, count: score.counts.High, colorKey: 'High' },
+    { name: 'Critical', value: score.percentages.Critical, count: score.counts.Critical, colorKey: 'Critical' }
   ].filter(item => item.value > 0);
 
   const barData = [
-    { name: 'Low Risk', count: score.counts.Good + score.counts.Low, percentage: score.percentages.Good + score.percentages.Low },
-    { name: 'Critical Risk', count: score.counts.Critical, percentage: score.percentages.Critical }
+    { name: 'Low', count: score.counts.Low, percentage: score.percentages.Low },
+    { name: 'High', count: score.counts.High, percentage: score.percentages.High },
+    { name: 'Critical', count: score.counts.Critical, percentage: score.percentages.Critical }
   ];
 
   const CustomTooltip = ({ active, payload }: any) => {
@@ -133,7 +134,7 @@ const ScoreVisuals = () => {
                 dataKey="value"
               >
                 {pieData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[entry.name as keyof typeof COLORS]} />
+                  <Cell key={`cell-${index}`} fill={COLORS[entry.colorKey as keyof typeof COLORS]} />
                 ))}
               </Pie>
               <Tooltip content={<CustomTooltip />} cursor={false} />
