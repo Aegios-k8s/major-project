@@ -113,16 +113,16 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
 
       console.log('✅ Posture data received:', result.data);
-      
+
       const services = transformPostureToServices(result.data);
       console.log('✅ Transformed services:', services.length);
-      
+
       dispatch({ type: 'SET_SERVICES', payload: services });
       dispatch({ type: 'SET_CONNECTION_STATUS', payload: true });
     } catch (error) {
       console.error('❌ Failed to fetch services:', error);
       dispatch({ type: 'SET_CONNECTION_STATUS', payload: false });
-      
+
       // Only show error toast if user is authenticated (has session token)
       // Don't show errors on login page
       if (getSessionToken() && !API_CONFIG.ENABLE_MOCK_DATA) {
@@ -158,14 +158,14 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
 
       console.log('✅ Score data received:', result.data);
-      
+
       const score = transformScoreToK8sScore(result.data);
       console.log('✅ Transformed score:', score);
-      
+
       dispatch({ type: 'SET_SCORE', payload: score });
     } catch (error) {
       console.error('❌ Failed to fetch score:', error);
-      
+
       // Only show error toast if user is authenticated
       if (getSessionToken() && !API_CONFIG.ENABLE_MOCK_DATA) {
         toast.error('Failed to fetch security score');
@@ -200,11 +200,11 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
 
       console.log('✅ Actions data received:', result.data);
-      
+
       dispatch({ type: 'SET_ACTIONS', payload: result.data.actions || [] });
     } catch (error) {
       console.error('❌ Failed to fetch actions:', error);
-      
+
       // Only show error toast if user is authenticated
       if (getSessionToken() && !API_CONFIG.ENABLE_MOCK_DATA) {
         toast.error('Failed to fetch K8s actions');
@@ -266,6 +266,21 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     return state.findings.filter((finding) => {
       const issueType = (finding.issue_type || '').toLowerCase().trim();
+
+      if (normalizedCategory === 'container-security' || normalizedCategory === 'container-image') {
+        const details = `${finding.description || ''} ${finding.recommendation || ''} ${finding.check_name || ''}`.toLowerCase();
+        if (expectedIssueTypes.includes(issueType)) return true;
+        return details.includes('privileged') ||
+          details.includes('running as root') ||
+          details.includes('runasuser') ||
+          details.includes('allow privilege escalation') ||
+          details.includes('allowprivilegeescalation') ||
+          details.includes('image') ||
+          details.includes('registry') ||
+          details.includes('latest tag') ||
+          details.includes('digest');
+      }
+
       return expectedIssueTypes.includes(issueType);
     });
   }, [state.findings]);
@@ -339,7 +354,7 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const startPolling = useCallback(() => {
     if (pollingRef.current) return;
-    
+
     // Poll every 10 seconds
     pollingRef.current = setInterval(() => {
       fetchServices();
@@ -409,25 +424,25 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
 
       console.log('✅ Action applied:', result.data);
-      
+
       toast.success(result.message || 'Action applied successfully');
-      
+
       // Refresh data after action
       await fetchServices();
       await fetchScore();
       await fetchActions();
       await fetchFindings();
-      
-      return { 
-        success: true, 
-        message: result.message, 
+
+      return {
+        success: true,
+        message: result.message,
         output: result.data?.note || result.data?.output || 'Action completed'
       };
     } catch (error) {
       console.error('❌ Failed to apply action:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to apply action';
       toast.error(errorMessage);
-      
+
       return {
         success: false,
         message: errorMessage,
@@ -477,7 +492,7 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   useEffect(() => {
     const sessionToken = getSessionToken();
-    
+
     // Don't automatically fetch data on mount
     // Data will only be fetched when user clicks "Fetch Data" button
     // or when explicitly navigating to security pages
@@ -497,7 +512,7 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       await Promise.all([fetchServices(), fetchScore(), fetchActions(), fetchFindings()]);
       dispatch({ type: 'SET_LOADING', payload: false });
     };
-    
+
     window.addEventListener('aegios:login', handleLogin);
 
     return () => {

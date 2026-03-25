@@ -154,6 +154,15 @@ func deriveIssueType(kind, missingKind, description, recommendation string) stri
 	if missingKindLower == "secret" {
 		return "secrets"
 	}
+
+	// Container security check MUST come before the deployment/resource-limit
+	// mapping, because container security findings also store "Deployment" as
+	// missing_kind. Without this ordering, they would be mislabeled as
+	// resource-limit.
+	if strings.Contains(desc, "securitycontext") || strings.Contains(desc, "privileged mode") || strings.Contains(desc, "running as root") || strings.Contains(desc, "allow privilege escalation") || strings.Contains(desc, "allows privilege escalation") || strings.Contains(blob, "runasuser") || strings.Contains(desc, "no securitycontext defined") {
+		return "container-security"
+	}
+
 	if missingKindLower == "deployment" || missingKindLower == "limitrange" {
 		return "resource-limit"
 	}

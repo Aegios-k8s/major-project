@@ -408,7 +408,7 @@ func getSeverityForMissingKind(kind string) string {
 		return "high"
 	}
 
-	return "medium"
+	return "low"
 }
 
 // getRecommendationsForMissingKind provides specific recommendations for each missing kind
@@ -721,7 +721,7 @@ func checkServiceExposure(orgID, namespace string, kindMap KindMap) {
 		if len(selector) == 0 {
 			description := fmt.Sprintf("Service '%s' does not define a selector, so it cannot route traffic to any pods.", service.Name)
 			recommendation := fmt.Sprintf("Service '%s' selector is empty. Add a selector matching deployment labels. Current service ports: %s.", service.Name, formatIntSlice(servicePortNumbers))
-			createServiceExposureFinding(orgID, namespace, "medium", description, recommendation)
+			createServiceExposureFinding(orgID, namespace, "low", description, recommendation)
 			continue
 		}
 
@@ -1366,14 +1366,14 @@ func checkSecretEncoding(orgID, namespace string, resources []Resource) {
 			if !ok {
 				description := fmt.Sprintf("Secret '%s' contains non-base64 encoded value for key '%s'.", resource.Name, key)
 				recommendation := "Encode secret values using base64 before storing them in Kubernetes Secret."
-				createSecretMisconfigurationFinding(orgID, namespace, resource.Kind, "medium", description, recommendation)
+				createSecretMisconfigurationFinding(orgID, namespace, resource.Kind, "low", description, recommendation)
 				continue
 			}
 
 			if _, err := base64.StdEncoding.DecodeString(value); err != nil {
 				description := fmt.Sprintf("Secret '%s' contains non-base64 encoded value for key '%s'.", resource.Name, key)
 				recommendation := "Encode secret values using base64 before storing them in Kubernetes Secret."
-				createSecretMisconfigurationFinding(orgID, namespace, resource.Kind, "medium", description, recommendation)
+				createSecretMisconfigurationFinding(orgID, namespace, resource.Kind, "low", description, recommendation)
 			}
 		}
 	}
