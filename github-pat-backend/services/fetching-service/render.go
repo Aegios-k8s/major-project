@@ -193,67 +193,107 @@ func RenderHelmAndStoreResources(orgID string, release string) (int, error) {
 
 	totalResources := 0
 
+	// Build a set of chart folder names for quick lookup
+	chartNameSet := make(map[string]string) // chartName -> chartFolder path
+	for _, chartFolder := range chartFolders {
+		chartNameSet[filepath.Base(chartFolder)] = chartFolder
+	}
+
+	// Smart mapping: pair each values file with its intended chart.
+	// If the service name (from values-<service>.yaml) matches a chart folder name, use that chart.
+	// Otherwise, fall back to the first chart that is NOT an exact match for any values file
+	// (typically "backend-common").
+	var fallbackChart string
 	for _, chartFolder := range chartFolders {
 		chartName := filepath.Base(chartFolder)
-
+		isExactMatch := false
 		for _, valuesFile := range valuesFiles {
-			valuesName := filepath.Base(valuesFile)
-
-			// Extract service name from values file (e.g., values-ecommerce.yaml -> ecommerce)
-			serviceName := strings.TrimPrefix(valuesName, "values-")
-			serviceName = strings.TrimSuffix(serviceName, ".yaml")
-
-			// Create dynamic release name: dummy-<service>
-			dynamicRelease := fmt.Sprintf("dummy-%s", serviceName)
-
-			fmt.Printf("🔄 Rendering: release=%s, chart=%s, values=%s\n", dynamicRelease, chartName, valuesName)
-
-			renderedYAML, err := ExecuteHelmRender(dynamicRelease, chartFolder, valuesFile, valuesDir)
-			if err != nil {
-				fmt.Printf("❌ Helm render failed: %v\n", err)
-				continue
+			vName := strings.TrimPrefix(filepath.Base(valuesFile), "values-")
+			vName = strings.TrimSuffix(vName, ".yaml")
+			if strings.EqualFold(vName, chartName) {
+				isExactMatch = true
+				break
 			}
-
-			if strings.TrimSpace(renderedYAML) == "" {
-				fmt.Printf("⚠️ Rendered YAML is empty\n")
-				continue
-			}
-
-			fmt.Printf("📝 Rendered YAML length: %d bytes\n", len(renderedYAML))
-
-			// Log first 500 chars of rendered YAML for debugging
-			if len(renderedYAML) > 500 {
-				fmt.Printf("📄 Preview:\n%s\n...\n", renderedYAML[:500])
-			} else {
-				fmt.Printf("📄 Full output:\n%s\n", renderedYAML)
-			}
-
-			resources, err := ParseRenderedYAML(renderedYAML, chartName)
-			if err != nil {
-				fmt.Printf("❌ YAML parse failed: %v\n", err)
-				continue
-			}
-
-			fmt.Printf("✅ Parsed %d resources from %s + %s\n", len(resources), chartName, valuesName)
-
-			if len(resources) == 0 {
-				continue
-			}
-
-			inserted, err := InsertK8sResources(orgID, resources)
-			if err != nil {
-				fmt.Printf("❌ Insert failed: %v\n", err)
-				continue
-			}
-
-			totalResources += inserted
 		}
+		if !isExactMatch {
+			fallbackChart = chartFolder
+			break
+		}
+	}
+	// If every chart matched a values file, just use the first chart as fallback
+	if fallbackChart == "" && len(chartFolders) > 0 {
+		fallbackChart = chartFolders[0]
+	}
+
+	for _, valuesFile := range valuesFiles {
+		valuesName := filepath.Base(valuesFile)
+
+		// Extract service name from values file (e.g., values-ecommerce.yaml -> ecommerce)
+		serviceName := strings.TrimPrefix(valuesName, "values-")
+		serviceName = strings.TrimSuffix(serviceName, ".yaml")
+
+		// Determine which chart to use for this values file
+		var chartFolder string
+		if matchedChart, ok := chartNameSet[serviceName]; ok {
+			// Exact match: values-frontend.yaml -> frontend chart
+			chartFolder = matchedChart
+		} else {
+			// No matching chart name -> use fallback (e.g., backend-common)
+			chartFolder = fallbackChart
+		}
+
+		chartName := filepath.Base(chartFolder)
+
+		// Create dynamic release name: dummy-<service>
+		dynamicRelease := fmt.Sprintf("dummy-%s", serviceName)
+
+		fmt.Printf("🔄 Rendering: release=%s, chart=%s, values=%s\n", dynamicRelease, chartName, valuesName)
+
+		renderedYAML, err := ExecuteHelmRender(dynamicRelease, chartFolder, valuesFile, valuesDir)
+		if err != nil {
+			fmt.Printf("❌ Helm render failed: %v\n", err)
+			continue
+		}
+
+		if strings.TrimSpace(renderedYAML) == "" {
+			fmt.Printf("⚠️ Rendered YAML is empty\n")
+			continue
+		}
+
+		fmt.Printf("📝 Rendered YAML length: %d bytes\n", len(renderedYAML))
+
+		// Log first 500 chars of rendered YAML for debugging
+		if len(renderedYAML) > 500 {
+			fmt.Printf("📄 Preview:\n%s\n...\n", renderedYAML[:500])
+		} else {
+			fmt.Printf("📄 Full output:\n%s\n", renderedYAML)
+		}
+
+		resources, err := ParseRenderedYAML(renderedYAML, chartName)
+		if err != nil {
+			fmt.Printf("❌ YAML parse failed: %v\n", err)
+			continue
+		}
+
+		fmt.Printf("✅ Parsed %d resources from %s + %s\n", len(resources), chartName, valuesName)
+
+		if len(resources) == 0 {
+			continue
+		}
+
+		inserted, err := InsertK8sResources(orgID, resources)
+		if err != nil {
+			fmt.Printf("❌ Insert failed: %v\n", err)
+			continue
+		}
+
+		totalResources += inserted
 	}
 
 	if totalResources == 0 {
 		return 0, fmt.Errorf("no resources were rendered and stored")
 	}
-  
+
 	return totalResources, nil
 }
 
@@ -482,7 +522,7 @@ func InsertK8sResources(orgID string, resources []K8sResourceItem) (int, error) 
 }
 
 func generateK8sResourceID(orgID, kind, name, namespace string) string {
-	input := fmt.Sprintf("%s|%s|%s|%s", orgID, strings.ToLower(kind), strings.ToLower(name), strings.ToLower(namespace))
+	input := fmt.Sprintf("%s|%s|%s|%s", orgID, kind, name, namespace)
 	hash := uint32(0)
 	for _, char := range input {
 		hash = hash*31 + uint32(char)
