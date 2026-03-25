@@ -144,33 +144,47 @@ func deriveIssueType(kind, missingKind, description, recommendation string) stri
 	missingKindLower := strings.ToLower(missingKind)
 	blob := strings.ToLower(strings.Join([]string{kindLower, missingKindLower, desc, reco}, " "))
 
-	// 1) RBAC check: missing required access-control kinds from validation checks.
+	// Explicitly map missing kinds to their frontend UI categories
+	if missingKindLower == "role" || missingKindLower == "clusterrole" || missingKindLower == "rolebinding" || missingKindLower == "clusterrolebinding" || missingKindLower == "serviceaccount" {
+		return "rbac"
+	}
+	if missingKindLower == "service" {
+		return "service-port"
+	}
+	if missingKindLower == "secret" {
+		return "secrets"
+	}
+	if missingKindLower == "deployment" || missingKindLower == "limitrange" {
+		return "resource-limit"
+	}
+
+	// 1) RBAC check
 	if strings.Contains(blob, "rbac") || strings.Contains(blob, "rolebinding") || strings.Contains(blob, "clusterrole") {
 		return "rbac"
 	}
 
-	// 2) Network policy check.
-	if missingKindLower == "networkpolicy" || strings.Contains(blob, "networkpolicy") || strings.Contains(blob, "network policy") {
+	// 2) Network policy check
+	if strings.Contains(blob, "networkpolicy") || strings.Contains(blob, "network policy") {
 		return "network-policy"
 	}
 
-	// 3) Service exposure check.
-	if missingKindLower == "service" || strings.Contains(blob, "targetport") || strings.Contains(blob, "containerport") || strings.Contains(blob, "nodeport") || strings.Contains(blob, "loadbalancer") || strings.Contains(blob, "exposed") {
+	// 3) Service exposure check
+	if strings.Contains(blob, "targetport") || strings.Contains(blob, "containerport") || strings.Contains(blob, "nodeport") || strings.Contains(blob, "loadbalancer") || strings.Contains(blob, "exposed") {
 		return "service-port"
 	}
 
-	// 4) Secret misconfiguration checks.
-	if strings.Contains(desc, "plain text environment variable") || strings.Contains(desc, "secretkeyref") || strings.Contains(desc, "sensitive key") || strings.Contains(desc, "non-base64") || missingKindLower == "secret" || kindLower == "secret" || kindLower == "configmap" {
+	// 4) Secret misconfiguration
+	if strings.Contains(desc, "plain text environment variable") || strings.Contains(desc, "secretkeyref") || strings.Contains(desc, "sensitive key") || strings.Contains(desc, "non-base64") || kindLower == "secret" || kindLower == "configmap" {
 		return "secrets"
 	}
 
-	// 5) Container security checks.
-	if strings.Contains(desc, "privileged mode") || strings.Contains(desc, "running as root") || strings.Contains(desc, "allow privilege escalation") || strings.Contains(desc, "allows privilege escalation") || strings.Contains(blob, "runasuser") {
+	// 5) Container security checks (now includes the missing securityContext check)
+	if strings.Contains(desc, "securitycontext") || strings.Contains(desc, "privileged mode") || strings.Contains(desc, "running as root") || strings.Contains(desc, "allow privilege escalation") || strings.Contains(desc, "allows privilege escalation") || strings.Contains(blob, "runasuser") {
 		return "container-security"
 	}
 
-	// 6) Resource misconfiguration check.
-	if strings.Contains(desc, "resource configuration") || strings.Contains(desc, "resource requests") || strings.Contains(desc, "resource limits") || strings.Contains(desc, "requests.cpu") || strings.Contains(desc, "limits.cpu") || strings.Contains(desc, "requests.memory") || strings.Contains(desc, "limits.memory") || missingKindLower == "deployment" {
+	// 6) Resource misconfiguration check (fallback)
+	if strings.Contains(desc, "resource configuration") || strings.Contains(desc, "resource requests") || strings.Contains(desc, "resource limits") || strings.Contains(desc, "requests.cpu") || strings.Contains(desc, "limits.cpu") || strings.Contains(desc, "requests.memory") || strings.Contains(desc, "limits.memory") {
 		return "resource-limit"
 	}
 

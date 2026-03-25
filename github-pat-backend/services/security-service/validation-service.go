@@ -39,14 +39,17 @@ type KindMap map[string][]Resource
 
 // RequiredKinds defines the required Kubernetes kinds for validation
 var RequiredKinds = []string{
+	"Deployment",
+	"DaemonSet",
+	"Service",
+	"ConfigMap",
+	"Secret",
+	"NetworkPolicy",
 	"Role",
-	"ClusterRole",
 	"RoleBinding",
+	"ClusterRole",
 	"ClusterRoleBinding",
 	"ServiceAccount",
-	"Deployment",
-	"Secret",
-	"Service",
 }
 
 // ValidateNamespaces is the main handler for namespace-level Kubernetes validation
@@ -85,9 +88,13 @@ func ValidateNamespaces(c *gin.Context) {
 		return
 	}
 
-	// Findings are recorded by the active security checks in runSecurityChecks.
-	// We intentionally avoid recording missing-kind findings so posture/action/score
-	// are driven only by implemented security checks.
+	// Record missing kinds as findings in the database
+	validationStartedAt, _ := getCurrentDatabaseTime()
+	_, err = recordValidationFindings(orgID, validationResults, validationStartedAt)
+	if err != nil {
+		fmt.Printf("⚠️ Failed to record missing kind findings: %v\n", err)
+	}
+
 	totalFindings, err := countValidationFindingsByOrgID(orgID)
 	if err != nil {
 		fmt.Printf("⚠️ Failed to count validation findings: %v\n", err)
@@ -414,7 +421,7 @@ func getSeverityForMissingKind(kind string) string {
 		return "high"
 	}
 
-	return "medium"
+	return "low"
 }
 
 // getRecommendationsForMissingKind provides specific recommendations for each missing kind
@@ -432,9 +439,15 @@ func getRecommendationsForMissingKind(kind, namespace string) string {
 
 		"Deployment": fmt.Sprintf("Create a Deployment in namespace '%s' to manage your application workloads. Deployments provide declarative updates for Pods and ReplicaSets.", namespace),
 
+		"DaemonSet": fmt.Sprintf("Create a DaemonSet in namespace '%s' to ensure a copy of a pod runs on all (or some) nodes, useful for log collection or node monitoring.", namespace),
+
 		"Secret": fmt.Sprintf("Create Secrets in namespace '%s' to store sensitive information such as passwords, tokens, and keys. Secrets should be used instead of storing sensitive data in Pod specifications or ConfigMaps.", namespace),
 
+		"ConfigMap": fmt.Sprintf("Create ConfigMaps in namespace '%s' to decouple environment-specific configuration from your container images.", namespace),
+
 		"Service": fmt.Sprintf("Create a Service in namespace '%s' to expose your application workloads. Services provide stable networking endpoints for Pods.", namespace),
+
+		"NetworkPolicy": fmt.Sprintf("Create NetworkPolicy resources in namespace '%s' to enforce ingress and egress restrictions for workloads in this namespace. Traffic may remain unrestricted by default without it.", namespace),
 	}
 
 	if rec, exists := recommendations[kind]; exists {
@@ -723,7 +736,7 @@ func checkServiceExposure(orgID, namespace string, kindMap KindMap) {
 		if len(selector) == 0 {
 			description := fmt.Sprintf("Service '%s' does not define a selector, so it cannot route traffic to any pods.", service.Name)
 			recommendation := fmt.Sprintf("Service '%s' selector is empty. Add a selector matching deployment labels. Current service ports: %s.", service.Name, formatIntSlice(servicePortNumbers))
-			createServiceExposureFinding(orgID, namespace, "medium", description, recommendation)
+			createServiceExposureFinding(orgID, namespace, "low", description, recommendation)
 			continue
 		}
 
@@ -1013,9 +1026,7 @@ func checkNetworkPolicy(orgID, namespace string, kindMap KindMap) {
 	}
 
 	if len(policies) == 0 {
-		description := "No NetworkPolicy found in namespace. Traffic may remain unrestricted by default."
-		recommendation := "Create NetworkPolicy resources to enforce ingress and egress restrictions for workloads in this namespace."
-		createNetworkPolicyFinding(orgID, namespace, "medium", description, recommendation)
+		// Missing NetworkPolicy is now handled natively by RequiredKinds list
 		return
 	}
 
@@ -1308,14 +1319,14 @@ func checkSecretEncoding(orgID, namespace string, resources []Resource) {
 			if !ok {
 				description := fmt.Sprintf("Secret '%s' contains non-base64 encoded value for key '%s'.", resource.Name, key)
 				recommendation := "Encode secret values using base64 before storing them in Kubernetes Secret."
-				createSecretMisconfigurationFinding(orgID, namespace, resource.Kind, "medium", description, recommendation)
+				createSecretMisconfigurationFinding(orgID, namespace, resource.Kind, "high", description, recommendation)
 				continue
 			}
 
 			if _, err := base64.StdEncoding.DecodeString(value); err != nil {
 				description := fmt.Sprintf("Secret '%s' contains non-base64 encoded value for key '%s'.", resource.Name, key)
 				recommendation := "Encode secret values using base64 before storing them in Kubernetes Secret."
-				createSecretMisconfigurationFinding(orgID, namespace, resource.Kind, "medium", description, recommendation)
+				createSecretMisconfigurationFinding(orgID, namespace, resource.Kind, "high", description, recommendation)
 			}
 		}
 	}
