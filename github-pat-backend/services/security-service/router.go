@@ -8,6 +8,8 @@ import (
 func RegisterRoutes(router *gin.RouterGroup) {
 	router.POST("/k8s-score", GetScore)
 	router.POST("/k8s-posture", GetPosture)
+	router.POST("/k8s-posture-findings", GetPostureFindings)
 	router.POST("/k8s-action", GetActions)
 	router.POST("/k8s-agentic", ApplyAgentic)
+	router.POST("/validate-namespaces", ValidateNamespaces)
 }

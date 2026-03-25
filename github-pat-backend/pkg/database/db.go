@@ -140,6 +140,9 @@ func createTables() error {
 			UNIQUE (commit_sha, content_hash)
 	);
 
+	-- Ensure legacy content column is removed (idempotent migration)
+	ALTER TABLE github_files DROP COLUMN IF EXISTS content;
+
 	-- =========================
 	-- KUBERNETES RESOURCE
 	-- =========================

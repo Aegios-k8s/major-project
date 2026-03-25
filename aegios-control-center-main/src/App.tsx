@@ -11,8 +11,10 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import SecurityLayout from "./components/security/SecurityLayout";
 import K8sScorePage from "./pages/security/K8sScorePage";
-import K8sPosturePage from "./pages/security/K8sPosturePage";
-import K8sActionsPage from "./pages/security/K8sActionsPage";
+import K8sActionLanding from "./pages/security/K8sActionLanding";
+import K8sActionCategoryPage from "./pages/security/K8sActionCategoryPage";
+import K8sPostureLanding from "./pages/security/K8sPostureLanding";
+import K8sCategoryPage from "./pages/security/K8sCategoryPage";
 import LoginPage from "./pages/auth/LoginPage";
 import SignupPage from "./pages/auth/SignupPage";
 import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
@@ -56,9 +58,27 @@ const App = () => (
               }>
                 <Route element={<SecurityLayout />}>
                   <Route path="k8s-score" element={<K8sScorePage />} />
-                  <Route path="k8s-posture" element={<K8sPosturePage />} />
-                  <Route path="k8s-action" element={<K8sActionsPage />} />
-                  <Route path="k8s-action/:serviceId" element={<K8sActionsPage />} />
+                  <Route path="k8s-posture" element={<K8sPostureLanding />} />
+                  <Route path="k8s-posture/:category" element={<K8sCategoryPage />} />
+                  <Route path="k8s-action" element={<K8sActionLanding />} />
+                  <Route path="k8s-action/:category" element={<K8sActionCategoryPage />} />
+                </Route>
+              </Route>
+
+              {/* Alias Security Routes */}
+              <Route path="/security" element={
+                <ProtectedRoute>
+                  <GlobalLayout />
+                </ProtectedRoute>
+              }>
+                <Route element={<SecurityLayout />}>
+                  <Route index element={<Navigate to="/security-service/k8s-score" replace />} />
+                  <Route path="k8s-score" element={<K8sScorePage />} />
+                  <Route path="k8s-posture" element={<K8sPostureLanding />} />
+                  <Route path="k8s-posture/:category" element={<K8sCategoryPage />} />
+                  <Route path="k8s-action" element={<K8sActionLanding />} />
+                  <Route path="k8s-action/:category" element={<K8sActionCategoryPage />} />
+                  <Route path="k8s-actions/:serviceId" element={<K8sActionLanding />} />
                 </Route>
               </Route>
               
@@ -66,7 +86,6 @@ const App = () => (
               <Route path="/login" element={<Navigate to="/authentication/login" replace />} />
               <Route path="/signup" element={<Navigate to="/authentication/signup" replace />} />
               <Route path="/dashboard" element={<Navigate to="/fetching-service/dashboard" replace />} />
-              <Route path="/security/*" element={<Navigate to="/security-service/k8s-score" replace />} />
               
               <Route path="*" element={<NotFound />} />
             </Routes>

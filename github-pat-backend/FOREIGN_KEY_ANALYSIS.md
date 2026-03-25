@@ -132,7 +132,7 @@ CONSTRAINT fk_k8s_org
     ON DELETE CASCADE
 ```
 **Status:** ✅ Working
-**Used in:** `validation.go` (new), previously in `fetch_data.go`
+**Used in:** `render.go` (new), previously in `fetch_data.go`
 
 ---
 
@@ -145,7 +145,7 @@ CONSTRAINT fk_k8s_file
 ```
 **Status:** ✅ Working (now allows NULL)
 **Used in:**
-- `validation.go` → Sets `repo_file_id = NULL` (Helm-rendered resources)
+- `render.go` → Sets `repo_file_id = NULL` (Helm-rendered resources)
 - Previously in `fetch_data.go` → Would set actual file ID (GitHub-sourced resources)
 
 ---

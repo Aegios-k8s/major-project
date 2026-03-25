@@ -3,7 +3,7 @@ import { Service } from "@/types/security";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronRight, CheckCircle, AlertTriangle, AlertCircle } from "lucide-react";
+import { ChevronDown, ChevronRight, AlertTriangle, AlertCircle } from "lucide-react";
 
 interface NamespaceGroupListProps {
   services: Service[];
@@ -45,10 +45,10 @@ const NamespaceGroupList = ({ services, selectedServiceId, onServiceSelect }: Na
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'Good':
-        return <CheckCircle className="h-3 w-3 text-primary" />;
       case 'Low':
         return <AlertTriangle className="h-3 w-3 text-yellow-500" />;
+      case 'High':
+        return <AlertTriangle className="h-3 w-3 text-orange-500" />;
       case 'Critical':
         return <AlertCircle className="h-3 w-3 text-destructive" />;
       default:
@@ -58,10 +58,10 @@ const NamespaceGroupList = ({ services, selectedServiceId, onServiceSelect }: Na
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'Good':
-        return 'text-primary';
       case 'Low':
         return 'text-yellow-500';
+      case 'High':
+        return 'text-orange-500';
       case 'Critical':
         return 'text-destructive';
       default:

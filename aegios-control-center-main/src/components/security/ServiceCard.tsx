@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Service } from "@/types/security";
 import { useNavigate } from "react-router-dom";
-import { ExternalLink, CheckCircle, AlertTriangle, AlertCircle } from "lucide-react";
+import { ExternalLink, AlertTriangle, AlertCircle } from "lucide-react";
 
 interface ServiceCardProps {
   service: Service;
@@ -11,13 +11,21 @@ interface ServiceCardProps {
 
 const ServiceCard = ({ service }: ServiceCardProps) => {
   const navigate = useNavigate();
+  const issueType = typeof service.metadata?.issue_type === 'string' ? service.metadata.issue_type.toLowerCase() : '';
+  const ownerText = typeof service.metadata?.owner === 'string' ? service.metadata.owner.toLowerCase() : '';
+  const kindLabel = typeof service.labels?.kind === 'string' ? service.labels.kind.toLowerCase() : '';
+  const shouldShowPorts = service.ports.length > 0 && (
+    issueType === 'container-port' ||
+    ownerText.includes('service exposure') ||
+    kindLabel === 'service'
+  );
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'Good':
-        return 'bg-primary/20 text-primary border-primary';
       case 'Low':
         return 'bg-yellow-500/20 text-yellow-500 border-yellow-500';
+      case 'High':
+        return 'bg-orange-500/20 text-orange-400 border-orange-500';
       case 'Critical':
         return 'bg-destructive/20 text-red-500 border-destructive';
       default:
@@ -27,9 +35,9 @@ const ServiceCard = ({ service }: ServiceCardProps) => {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'Good':
-        return <CheckCircle className="h-4 w-4" />;
       case 'Low':
+        return <AlertTriangle className="h-4 w-4" />;
+      case 'High':
         return <AlertTriangle className="h-4 w-4" />;
       case 'Critical':
         return <AlertCircle className="h-4 w-4" />;
@@ -39,7 +47,24 @@ const ServiceCard = ({ service }: ServiceCardProps) => {
   };
 
   const handleViewActions = () => {
-    navigate(`/security/k8s-actions/${service.id}`);
+    const issueType = typeof service.metadata?.issue_type === 'string'
+      ? service.metadata.issue_type.toLowerCase()
+      : '';
+
+    const categoryMap: Record<string, string> = {
+      'container-port': 'service-port',
+      'pod': 'resource-limit',
+      'container-image': 'container-security',
+    };
+
+    const category = categoryMap[issueType] || issueType;
+
+    if (category) {
+      navigate(`/security/k8s-action/${category}`);
+      return;
+    }
+
+    navigate('/security/k8s-action');
   };
 
   return (
@@ -81,23 +106,25 @@ const ServiceCard = ({ service }: ServiceCardProps) => {
             </div>
           </div>
 
-          {/* Box B - Current Status (30% width) */}
+          {/* Box B - Current Config (30% width) */}
           <div className="flex-1 p-4 rounded-lg bg-secondary/30 border border-primary">
             <div className="space-y-3">
-              <p className="text-xs text-muted-foreground uppercase tracking-wide">Current Status</p>
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">Exposed Ports:</p>
-                <div className="flex flex-wrap gap-2">
-                  {service.ports.map((port) => (
-                    <span 
-                      key={port}
-                      className="text-lg font-bold text-destructive bg-destructive/10 border border-destructive/30 rounded px-2 py-1"
-                    >
-                      {port}
-                    </span>
-                  ))}
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">Current Config</p>
+              {shouldShowPorts && (
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">Exposed Ports:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {service.ports.map((port) => (
+                      <span 
+                        key={port}
+                        className="text-lg font-bold text-destructive bg-destructive/10 border border-destructive/30 rounded px-2 py-1"
+                      >
+                        {port}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
               {service.metadata.owner && (
                 <div>
                   <p className="text-xs text-muted-foreground uppercase tracking-wide">Owner</p>
@@ -111,7 +138,7 @@ const ServiceCard = ({ service }: ServiceCardProps) => {
           <div className="flex-1 p-4 rounded-lg bg-secondary/30 border border-primary">
             <div className="space-y-3">
               <p className="text-xs text-muted-foreground uppercase tracking-wide">Recommendations</p>
-              <div className="max-h-40 overflow-auto">
+              <div>
                 {service.recommendations.length > 0 ? (
                   <ul className="space-y-2">
                     {service.recommendations.map((recommendation, index) => (

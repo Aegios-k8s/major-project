@@ -185,7 +185,7 @@ The frontend should send:
 - Command matches user's expected pattern exactly
 
 ### Files Modified
-- `github-pat-backend/services/fetching-service/validation.go`
+- `github-pat-backend/services/fetching-service/render.go`
 
 ### Files Created
 - `github-pat-backend/check_db_content.go` (for verification)

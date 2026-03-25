@@ -127,7 +127,7 @@ D:\MAJOR-PROJECT\
     │   ├── fetching-service/           # Fetching Service
     │   │   ├── dashboard.go            # Dashboard summary
     │   │   ├── fetch_data.go           # GitHub scanning
-    │   │   ├── validation.go           # Vulnerability detection
+   │   │   ├── render.go               # Vulnerability detection
     │   │   └── router.go               # Route registration
     │   └── security-service/           # Security Service
     │       ├── k8s_score.go            # Security scoring
@@ -198,7 +198,7 @@ User authentication service:
 Data fetching and validation service:
 - **dashboard.go**: Dashboard summary data
 - **fetch_data.go**: GitHub repository scanning and K8s extraction
-- **validation.go**: Vulnerability detection
+- **render.go**: Vulnerability detection
 - **router.go**: Route registration for /fetching-service/*
 
 #### `/services/security-service/`
@@ -253,7 +253,7 @@ GitHub API (for repo scanning)
 **Fetching Service** (`/fetching-service`)
 - POST /fetching-service/dashboard
 - POST /fetching-service/fetch-data
-- POST /fetching-service/validation
+- POST /fetching-service/rendering
 
 **Security Service** (`/security-service`)
 - POST /security-service/k8s-score
