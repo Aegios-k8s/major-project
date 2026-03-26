@@ -77,8 +77,8 @@ const K8sActionLanding = () => {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <h1 className="text-3xl font-bold text-green-400 neon-text">K8s Actions</h1>
-        <p className="text-green-200/80">
+        <h1 className="text-3xl font-bold text-primary">K8s Actions</h1>
+        <p className="text-muted-foreground">
           Choose a security category to inspect findings and apply targeted remediations.
         </p>
       </div>
@@ -92,7 +92,7 @@ const K8sActionLanding = () => {
             <Card
               key={category.id}
               onClick={() => navigate(`/security/k8s-action/${category.id}`)}
-              className="bg-black border border-green-500/60 rounded-xl cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:border-green-400 hover:shadow-[0_0_20px_rgba(34,197,94,0.35)]"
+              className="border-cyber-border bg-card glow-border cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:border-primary hover:shadow-[0_0_24px_rgba(0,255,65,0.28)]"
               role="button"
               tabIndex={0}
               onKeyDown={(event) => {
@@ -104,16 +104,16 @@ const K8sActionLanding = () => {
             >
               <CardContent className="p-6 space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-green-500 bg-green-500/10 text-green-300">
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-primary bg-primary/10 text-primary">
                     <Icon className="h-5 w-5" />
                   </span>
-                  <span className="text-xs px-2 py-1 rounded border border-green-500/70 text-green-300 bg-green-500/10">
+                  <span className="text-xs px-2 py-1 rounded border border-primary/50 text-primary bg-primary/10">
                     {count} Findings
                   </span>
                 </div>
                 <div className="space-y-1">
-                  <h2 className="text-lg font-semibold text-green-200">{category.title}</h2>
-                  <p className="text-sm text-green-200/80 leading-relaxed">{category.description}</p>
+                  <h2 className="text-lg font-semibold text-foreground">{category.title}</h2>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{category.description}</p>
                 </div>
               </CardContent>
             </Card>

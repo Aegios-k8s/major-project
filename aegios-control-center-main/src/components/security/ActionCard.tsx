@@ -19,9 +19,9 @@ const severityToStatus = (severity: string): "Low" | "High" | "Critical" => {
 };
 
 const statusClassMap: Record<string, string> = {
-  Critical: "bg-red-500/10 text-red-400 border-red-500/50",
-  High: "bg-orange-500/10 text-orange-300 border-orange-500/50",
-  Low: "bg-yellow-500/10 text-yellow-300 border-yellow-500/50",
+  Critical: "bg-[#FF0000]/10 text-[#FF0000] border-[#FF0000]/50",
+  High: "bg-yellow-500/10 text-yellow-500 border-yellow-500/50",
+  Low: "bg-orange-500/10 text-orange-500 border-orange-500/50",
 };
 
 const ActionCard = ({ finding, onApply }: ActionCardProps) => {
@@ -67,7 +67,7 @@ const ActionCard = ({ finding, onApply }: ActionCardProps) => {
   };
 
   return (
-    <Card className="bg-black border border-green-500/60 rounded-xl hover:border-green-400 transition-colors">
+    <Card className="border-cyber-border bg-card glow-border transition-colors hover:border-primary">
       <CardContent className="p-6 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>

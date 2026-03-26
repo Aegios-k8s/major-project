@@ -314,8 +314,7 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       if (isResourceLimit) {
         if (issueType === 'resource-limit' || issueType === 'pod') return true;
-        return kind === 'deployment' ||
-          details.includes('resource configuration') ||
+        return details.includes('resource configuration') ||
           details.includes('resource requests') ||
           details.includes('resource limits') ||
           details.includes('requests.cpu') ||

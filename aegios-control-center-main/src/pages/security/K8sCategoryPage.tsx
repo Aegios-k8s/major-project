@@ -94,11 +94,11 @@ const K8sCategoryPage = () => {
       <div className="flex items-center gap-4 text-sm text-muted-foreground">
         <span>Total Findings: <span className="text-primary font-semibold">{services.length}</span></span>
         <span>•</span>
-        <span>Critical: <span className="text-red-500 font-semibold">{criticalCount}</span></span>
+        <span>Critical: <span className="text-[#FF0000] font-semibold">{criticalCount}</span></span>
         <span>•</span>
-        <span>High: <span className="text-orange-500 font-semibold">{highCount}</span></span>
+        <span>High: <span className="text-yellow-500 font-semibold">{highCount}</span></span>
         <span>•</span>
-        <span>Low: <span className="text-yellow-500 font-semibold">{lowCount}</span></span>
+        <span>Low: <span className="text-orange-500 font-semibold">{lowCount}</span></span>
       </div>
 
       {services.length === 0 ? (

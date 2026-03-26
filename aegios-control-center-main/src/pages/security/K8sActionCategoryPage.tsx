@@ -40,64 +40,61 @@ const mapActionsToFindingCards = (category: string, resources: K8sResourceAction
 
   resources.forEach((resource) => {
     const kind = (resource.kind || "").toLowerCase();
-    const actionTextBlob = (resource.actions || [])
-      .map((action) => `${action.type} ${action.description} ${action.remediation}`)
-      .join(" ")
-      .toLowerCase();
-
-    const belongsToCategory = (() => {
-      if (category === "rbac") {
-        return ["role", "clusterrole", "rolebinding", "clusterrolebinding", "serviceaccount"].includes(kind) || actionTextBlob.includes("rbac");
-      }
-      if (category === "network-policy") {
-        return kind === "networkpolicy" || actionTextBlob.includes("network policy") || actionTextBlob.includes("ingress") || actionTextBlob.includes("egress");
-      }
-      if (isServicePort) {
-        return kind === "service" || actionTextBlob.includes("port") || actionTextBlob.includes("nodeport") || actionTextBlob.includes("targetport");
-      }
-      if (isResourceLimit) {
-        return kind === "deployment" ||
-          actionTextBlob.includes("resource configuration") ||
-          actionTextBlob.includes("resource requests") ||
-          actionTextBlob.includes("resource limits") ||
-          actionTextBlob.includes("requests.cpu") ||
-          actionTextBlob.includes("limits.cpu") ||
-          actionTextBlob.includes("requests.memory") ||
-          actionTextBlob.includes("limits.memory");
-      }
-      if (isContainerSecurity) {
-        return actionTextBlob.includes("privileged") ||
-          actionTextBlob.includes("runasuser") ||
-          actionTextBlob.includes("running as root") ||
-          actionTextBlob.includes("allow privilege escalation") ||
-          actionTextBlob.includes("allowprivilegeescalation") ||
-          actionTextBlob.includes("image") ||
-          actionTextBlob.includes("tag") ||
-          actionTextBlob.includes("registry");
-      }
-      if (category === "secrets") {
-        return ["secret", "configmap"].includes(kind) || actionTextBlob.includes("secret") || actionTextBlob.includes("password") || actionTextBlob.includes("token");
-      }
-      return false;
-    })();
-
-    if (!belongsToCategory) {
-      return;
-    }
 
     (resource.actions || []).forEach((action, index) => {
-      actionCards.push({
-        finding_id: `${resource.resource_id}-${index}`,
-        resource_id: resource.resource_id,
-        namespace: resource.namespace || "default",
-        name: resource.name,
-        kind: resource.kind,
-        issue_type: category,
-        severity: severityFromPriority(action.priority),
-        description: action.description || action.type,
-        recommendation: action.remediation,
-        detected_at: new Date().toISOString(),
-      });
+      const actionTextBlob = `${action.type} ${action.description} ${action.remediation}`.toLowerCase();
+
+      const belongsToCategory = (() => {
+        if (category === "rbac") {
+          return ["role", "clusterrole", "rolebinding", "clusterrolebinding", "serviceaccount"].includes(kind) || actionTextBlob.includes("rbac");
+        }
+        if (category === "network-policy") {
+          return kind === "networkpolicy" || actionTextBlob.includes("network policy") || actionTextBlob.includes("ingress") || actionTextBlob.includes("egress");
+        }
+        if (isServicePort) {
+          return kind === "service" || actionTextBlob.includes("port") || actionTextBlob.includes("nodeport") || actionTextBlob.includes("targetport");
+        }
+        if (isResourceLimit) {
+          return actionTextBlob.includes("resource configuration") ||
+            actionTextBlob.includes("resource requests") ||
+            actionTextBlob.includes("resource limits") ||
+            actionTextBlob.includes("requests.cpu") ||
+            actionTextBlob.includes("limits.cpu") ||
+            actionTextBlob.includes("requests.memory") ||
+            actionTextBlob.includes("limits.memory");
+        }
+        if (isContainerSecurity) {
+          return actionTextBlob.includes("privileged") ||
+            actionTextBlob.includes("runasuser") ||
+            actionTextBlob.includes("running as root") ||
+            actionTextBlob.includes("allow privilege escalation") ||
+            actionTextBlob.includes("allowprivilegeescalation") ||
+            actionTextBlob.includes("image") ||
+            actionTextBlob.includes("tag") ||
+            actionTextBlob.includes("registry") ||
+            actionTextBlob.includes("non-root") ||
+            actionTextBlob.includes("non_root");
+        }
+        if (category === "secrets") {
+          return ["secret", "configmap"].includes(kind) || actionTextBlob.includes("secret") || actionTextBlob.includes("password") || actionTextBlob.includes("token");
+        }
+        return false;
+      })();
+
+      if (belongsToCategory) {
+        actionCards.push({
+          finding_id: `${resource.resource_id}-${index}`,
+          resource_id: resource.resource_id,
+          namespace: resource.namespace || "default",
+          name: resource.name,
+          kind: resource.kind,
+          issue_type: category,
+          severity: severityFromPriority(action.priority),
+          description: action.description || action.type,
+          recommendation: action.remediation,
+          detected_at: new Date().toISOString(),
+        });
+      }
     });
   });
 
@@ -200,11 +197,11 @@ const K8sActionCategoryPage = () => {
       <div className="flex items-center gap-4 text-sm text-green-200/80">
         <span>Total Findings: <span className="text-green-300 font-semibold">{findings.length}</span></span>
         <span>•</span>
-        <span>Critical: <span className="text-red-400 font-semibold">{criticalCount}</span></span>
+        <span>Critical: <span className="text-[#FF0000] font-semibold">{criticalCount}</span></span>
         <span>•</span>
-        <span>High: <span className="text-orange-300 font-semibold">{highCount}</span></span>
+        <span>High: <span className="text-yellow-300 font-semibold">{highCount}</span></span>
         <span>•</span>
-        <span>Low: <span className="text-yellow-300 font-semibold">{lowCount}</span></span>
+        <span>Low: <span className="text-orange-300 font-semibold">{lowCount}</span></span>
       </div>
 
       {findings.length === 0 ? (
