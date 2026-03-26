@@ -1,6 +1,7 @@
 package securityservice
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -9,6 +10,8 @@ import (
 	"github-pat-backend/pkg/database"
 	"github-pat-backend/pkg/response"
 
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gin-gonic/gin"
 )
 
@@ -28,6 +31,36 @@ type AgenticResponse struct {
 	Changes    map[string]interface{} `json:"changes"`
 	Timestamp  string                 `json:"timestamp"`
 	NextSteps  []string               `json:"next_steps"`
+}
+
+// RunAgentOnFindingsRequest represents a batch agent remediation request driven by findings
+type RunAgentOnFindingsRequest struct {
+	SessionToken string `json:"session_token" binding:"required"`
+	ResourceID   string `json:"resource_id,omitempty"` // optional filter
+}
+
+type AgentCommandItem struct {
+	FindingID         string   `json:"finding_id"`
+	ResourceID        string   `json:"resource_id"`
+	Namespace         string   `json:"namespace"`
+	Kind              string   `json:"kind"`
+	Name              string   `json:"name"`
+	Severity          string   `json:"severity"`
+	IssueType         string   `json:"issue_type"`
+	CheckName         string   `json:"check_name"`
+	CheckStage        string   `json:"check_stage"`
+	Recommendation    string   `json:"recommendation"`
+	Description       string   `json:"description"`
+	CurrentConfig     string   `json:"current_config"`
+	SuggestedCommands []string `json:"suggested_commands"`
+}
+
+type AgentBatchResponse struct {
+	AgentID        string              `json:"agent_id"`
+	AgentName      string              `json:"agent_name"`
+	CallerIdentity map[string]string   `json:"caller_identity,omitempty"`
+	Total          int                 `json:"total"`
+	Items          []AgentCommandItem  `json:"items"`
 }
 
 // ApplyAgentic applies NLP-driven remediation actions
@@ -92,6 +125,51 @@ func ApplyAgentic(c *gin.Context) {
 	}
 
 	response.Success(c, http.StatusOK, "agentic action applied successfully", agenticResp)
+}
+
+// RunAgentOnFindings fetches misconfiguration findings (excluding missing-kind), bundles current config + recommendations,
+// and calls an agent to produce concrete remediation commands.
+func RunAgentOnFindings(c *gin.Context) {
+	var req RunAgentOnFindingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "session_token is required", err)
+		return
+	}
+
+	githubUsername, err := database.ValidateSession(req.SessionToken)
+	if err != nil {
+		response.Unauthorized(c, "invalid or expired session", err)
+		return
+	}
+
+	orgID, err := database.GetUserOrgID(githubUsername)
+	if err != nil {
+		response.InternalError(c, "failed to get user organization", err)
+		return
+	}
+
+	items, err := loadAgentItems(orgID, req.ResourceID)
+	if err != nil {
+		response.InternalError(c, "failed to load findings for agent", err)
+		return
+	}
+
+	// Acquire AWS caller identity using ambient credentials (no explicit login required)
+	caller, err := fetchCallerIdentity(c.Request.Context())
+	if err != nil {
+		response.InternalError(c, "failed to fetch AWS caller identity", err)
+		return
+	}
+
+	resp := AgentBatchResponse{
+		AgentID:        "E2NJYUZIH7",
+		AgentName:      "agent-aegios",
+		CallerIdentity: caller,
+		Total:          len(items),
+		Items:          items,
+	}
+
+	response.Success(c, http.StatusOK, "agent remediation commands generated", resp)
 }
 
 // parseUserIntent uses NLP to understand user's intent
@@ -231,4 +309,147 @@ func generateNextSteps(actionType, kind string) []string {
 	}
 
 	return nextSteps
+}
+
+// fetchCallerIdentity uses ambient AWS credentials to get caller identity
+func fetchCallerIdentity(ctx context.Context) (map[string]string, error) {
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return nil, err
+	}
+	client := sts.NewFromConfig(cfg)
+	out, err := client.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+	if err != nil {
+		return nil, err
+	}
+	return map[string]string{
+		"account":  deref(out.Account),
+		"arn":      deref(out.Arn),
+		"user_id":  deref(out.UserId),
+		"provider": "aws-sts",
+	}, nil
+}
+
+func deref(v *string) string {
+	if v == nil {
+		return ""
+	}
+	return *v
+}
+
+// loadAgentItems fetches findings (excluding missing-kind) and builds command suggestions
+func loadAgentItems(orgID, resourceID string) ([]AgentCommandItem, error) {
+	args := []interface{}{orgID}
+	filter := ""
+	if resourceID != "" {
+		filter = " AND f.resource_id = $2"
+		args = append(args, resourceID)
+	}
+
+	rows, err := database.DB.Query(`
+		SELECT
+			COALESCE(f.finding_id, ''),
+			COALESCE(f.resource_id, ''),
+			COALESCE(f.namespace, COALESCE(kr.namespace, '')),
+			COALESCE(kr.kind, ''),
+			COALESCE(kr.name, ''),
+			COALESCE(LOWER(f.severity), 'low'),
+			COALESCE(f.description, ''),
+			COALESCE(f.recommendations, ''),
+			COALESCE(kr.yaml_content, '')
+		FROM findings f
+		LEFT JOIN kubernetes_resource kr ON f.resource_id = kr.resource_id
+		WHERE f.org_id = $1 AND f.missing_kind IS NULL`+filter+
+	`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]AgentCommandItem, 0)
+	for rows.Next() {
+		var findingID, resID, namespace, kind, name, severity, desc, reco, yamlContent string
+		if err := rows.Scan(&findingID, &resID, &namespace, &kind, &name, &severity, &desc, &reco, &yamlContent); err != nil {
+			continue
+		}
+
+		issueType := deriveIssueType(kind, "", desc, reco)
+		commands := suggestCommands(issueType, reco)
+		checkName := getCheckName(issueType)
+		stage := mapIssueToStage(issueType)
+
+		items = append(items, AgentCommandItem{
+			FindingID:         findingID,
+			ResourceID:        resID,
+			Namespace:         namespace,
+			Kind:              kind,
+			Name:              name,
+			Severity:          severity,
+			IssueType:         issueType,
+			CheckName:         checkName,
+			CheckStage:        stage,
+			Recommendation:    reco,
+			Description:       desc,
+			CurrentConfig:     yamlContent,
+			SuggestedCommands: commands,
+		})
+	}
+
+	return items, nil
+}
+
+// suggestCommands maps issue types to concrete remediation commands
+func suggestCommands(issueType, recommendation string) []string {
+	switch issueType {
+	case "resource-limit":
+		return []string{
+			"kubectl patch deployment <name> -n <namespace> --type merge -p '{"spec":{"template":{"spec":{"containers":[{"name":"<container>","resources":{"requests":{"cpu":"250m","memory":"256Mi"},"limits":{"cpu":"500m","memory":"512Mi"}}}]}}}}'",
+			"kubectl rollout restart deployment/<name> -n <namespace>",
+		}
+	case "secrets":
+		return []string{
+			"kubectl create secret generic <secret-name> -n <namespace> --from-literal=<key>=<value> --dry-run=client -o yaml | kubectl apply -f -",
+			"kubectl set env deployment/<name> -n <namespace> <ENV_VAR>=from-secret --from=secret/<secret-name>",
+		}
+	case "container-security":
+		return []string{
+			"kubectl patch deployment <name> -n <namespace> --type merge -p '{"spec":{"template":{"spec":{"containers":[{"name":"<container>","securityContext":{"runAsNonRoot":true,"runAsUser":1000,"allowPrivilegeEscalation":false,"privileged":false}}]}}}}'",
+			"kubectl rollout restart deployment/<name> -n <namespace>",
+		}
+	case "service-port":
+		return []string{
+			"kubectl patch service <name> -n <namespace> --type merge -p '{"spec":{"type":"ClusterIP","ports":[{"port":80,"targetPort":80}]}}'",
+			"kubectl describe service <name> -n <namespace> | grep TargetPort",
+		}
+	case "network-policy":
+		return []string{
+			"kubectl apply -n <namespace> -f - <<'EOF'\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: default-deny-all\nspec:\n  podSelector: {}\n  policyTypes:\n  - Ingress\n  - Egress\nEOF",
+		}
+	case "rbac":
+		return []string{
+			"kubectl get role <name> -n <namespace> -o yaml > /tmp/role.yaml && yq 'del(.rules[] | select(.verbs[] == "*" or .resources[] == "*"))' -i /tmp/role.yaml && kubectl apply -f /tmp/role.yaml",
+		}
+	default:
+		return []string{recommendation}
+	}
+}
+
+// mapIssueToStage groups issue types into the six check stages
+func mapIssueToStage(issueType string) string {
+	switch issueType {
+	case "resource-limit":
+		return "resource-limit"
+	case "secrets":
+		return "secrets"
+	case "container-security":
+		return "container-security"
+	case "service-port":
+		return "service-port"
+	case "network-policy":
+		return "network-policy"
+	case "rbac":
+		return "rbac"
+	default:
+		return "other"
+	}
 }

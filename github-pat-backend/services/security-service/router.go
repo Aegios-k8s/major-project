@@ -11,5 +11,6 @@ func RegisterRoutes(router *gin.RouterGroup) {
 	router.POST("/k8s-posture-findings", GetPostureFindings)
 	router.POST("/k8s-action", GetActions)
 	router.POST("/k8s-agentic", ApplyAgentic)
+	router.POST("/k8s-agentic/findings", RunAgentOnFindings)
 	router.POST("/validate-namespaces", ValidateNamespaces)
 }
