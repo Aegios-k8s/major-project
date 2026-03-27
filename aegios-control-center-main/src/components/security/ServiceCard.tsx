@@ -68,100 +68,89 @@ const ServiceCard = ({ service }: ServiceCardProps) => {
   };
 
   return (
-    <Card className="border-cyber-border bg-card glow-border ">
-      <CardContent className="p-6">
-        {/* Three Horizontal Boxes */}
-        <div className="flex flex-col lg:flex-row gap-4 mb-6">
-          {/* Box A - Composite Meta (40% width) */}
-          <div className="flex-1 lg:flex-[2] p-4 rounded-lg bg-secondary/30 border border-primary">
-            <div className="space-y-3">
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide">Namespace</p>
-                <p className="text-sm font-medium text-foreground">{service.namespace}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide">Name</p>
-                <p className="text-lg font-semibold text-primary ">{service.name}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Labels</p>
-                <div className="flex flex-wrap gap-1">
-                  {Object.entries(service.labels).map(([key, value]) => (
-                    <Badge 
-                      key={key} 
-                      className="text-xs neon-badge"
-                    >
-                      {key}: {value}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Status</p>
-                <Badge className={`${getStatusColor(service.status)} flex items-center gap-1 w-fit`}>
-                  {getStatusIcon(service.status)}
-                  {service.status}
+    <Card className="border-cyber-border bg-card glow-border transition-colors hover:border-primary">
+      <CardContent className="p-6 space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Namespace</p>
+            <p className="text-sm font-medium text-foreground">{service.namespace || "default"}</p>
+          </div>
+          <div>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Name</p>
+            <p className="text-sm font-semibold text-primary">{service.name || "Unknown"}</p>
+          </div>
+          <div>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Labels</p>
+            <div className="flex flex-wrap gap-2 mt-1">
+              {Object.entries(service.labels).map(([key, value]) => (
+                <Badge
+                  key={key}
+                  className="text-xs neon-badge"
+                >
+                  {key}: {value}
                 </Badge>
-              </div>
-            </div>
-          </div>
-
-          {/* Box B - Current Config (30% width) */}
-          <div className="flex-1 p-4 rounded-lg bg-secondary/30 border border-primary">
-            <div className="space-y-3">
-              <p className="text-xs text-muted-foreground uppercase tracking-wide">Current Config</p>
-              {shouldShowPorts && (
-                <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground">Exposed Ports:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {service.ports.map((port) => (
-                      <span 
-                        key={port}
-                        className="text-lg font-bold text-destructive bg-destructive/10 border border-destructive/30 rounded px-2 py-1"
-                      >
-                        {port}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {service.metadata.owner && (
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Owner</p>
-                  <p className="text-sm text-foreground">{service.metadata.owner}</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Box C - Recommendations (30% width) */}
-          <div className="flex-1 p-4 rounded-lg bg-secondary/30 border border-primary">
-            <div className="space-y-3">
-              <p className="text-xs text-muted-foreground uppercase tracking-wide">Recommendations</p>
-              <div>
-                {service.recommendations.length > 0 ? (
-                  <ul className="space-y-2">
-                    {service.recommendations.map((recommendation, index) => (
-                      <li 
-                        key={index}
-                        className="text-sm text-destructive flex items-start gap-2"
-                      >
-                        <span className="text-destructive mt-1">•</span>
-                        <span>{recommendation}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-sm text-primary">No recommendations - service is secure</p>
-                )}
-              </div>
+              ))}
             </div>
           </div>
         </div>
 
-        {/* Bottom - View Actions Button */}
-        <div className="pt-4 border-t border-cyber-border">
-          <Button 
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Status:</span>
+          <Badge className={`${getStatusColor(service.status)} flex items-center gap-1 w-fit`}>
+            {getStatusIcon(service.status)}
+            {service.status}
+          </Badge>
+        </div>
+
+        <div className="rounded-lg border border-primary/40 bg-secondary/10 p-4 space-y-2">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Current Config</p>
+          {shouldShowPorts && (
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Exposed Ports:</p>
+              <div className="flex flex-wrap gap-2">
+                {service.ports.map((port) => (
+                  <span
+                    key={port}
+                    className="text-lg font-bold text-destructive bg-destructive/10 border border-destructive/30 rounded px-2 py-1"
+                  >
+                    {port}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {service.metadata?.description ? (
+            <p className="text-sm text-foreground whitespace-pre-wrap">{service.metadata.description}</p>
+          ) : service.metadata?.owner ? (
+            <p className="text-sm text-foreground whitespace-pre-wrap">{service.metadata.owner}</p>
+          ) : !shouldShowPorts && (
+            <p className="text-sm text-foreground">No issue details available.</p>
+          )}
+        </div>
+
+        <div className="rounded-lg border border-primary/40 bg-secondary/10 p-4 space-y-2">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Recommendation</p>
+          {service.metadata?.recommendation_raw ? (
+            <p className="text-sm text-foreground whitespace-pre-wrap">{service.metadata.recommendation_raw}</p>
+          ) : service.recommendations.length > 0 ? (
+            <ul className="space-y-2">
+              {service.recommendations.map((recommendation, index) => (
+                <li
+                  key={index}
+                  className="text-sm text-foreground flex items-start gap-2"
+                >
+                  <span className="text-primary mt-1">•</span>
+                  <span>{recommendation}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-foreground">No recommendation provided.</p>
+          )}
+        </div>
+
+        <div className="pt-4 border-t border-cyber-border mt-2">
+          <Button
             onClick={handleViewActions}
             variant="outline"
             className="w-full lg:w-auto border-primary text-primary hover:bg-primary/10 hover:text-primary bg-transparent"

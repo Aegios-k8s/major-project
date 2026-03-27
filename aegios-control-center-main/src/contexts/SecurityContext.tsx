@@ -13,6 +13,7 @@ interface SecurityState {
   isLoading: boolean;
   loadingValidation: boolean;
   validationStatus: 'idle' | 'running' | 'success' | 'error';
+  activities: import('@/types/security').ActivityLog[];
 }
 
 type SecurityAction =
@@ -25,7 +26,31 @@ type SecurityAction =
   | { type: 'SET_VALIDATION_STATUS'; payload: 'idle' | 'running' | 'success' | 'error' }
   | { type: 'ADD_SERVICE'; payload: Service }
   | { type: 'UPDATE_SERVICE'; payload: Service }
-  | { type: 'SET_CONNECTION_STATUS'; payload: boolean };
+  | { type: 'SET_CONNECTION_STATUS'; payload: boolean }
+  | { type: 'ADD_ACTIVITY'; payload: import('@/types/security').ActivityLog };
+
+const getInitialActivities = (): import('@/types/security').ActivityLog[] => {
+  try {
+    const stored = localStorage.getItem('aegios_recent_activities');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return parsed.map((item: any) => ({
+        ...item,
+        timestamp: new Date(item.timestamp)
+      }));
+    }
+  } catch (e) {
+    console.warn("Failed to parse recent activities from localStorage", e);
+  }
+  return [
+    {
+      id: 'init-1',
+      type: 'info',
+      message: 'System initialized and ready',
+      timestamp: new Date()
+    }
+  ];
+};
 
 const initialState: SecurityState = {
   services: [],
@@ -36,6 +61,7 @@ const initialState: SecurityState = {
   isLoading: true,
   loadingValidation: false,
   validationStatus: 'idle',
+  activities: getInitialActivities(),
 };
 
 const securityReducer = (state: SecurityState, action: SecurityAction): SecurityState => {
@@ -65,6 +91,11 @@ const securityReducer = (state: SecurityState, action: SecurityAction): Security
       };
     case 'SET_CONNECTION_STATUS':
       return { ...state, isConnected: action.payload };
+    case 'ADD_ACTIVITY':
+      return { 
+        ...state, 
+        activities: [action.payload, ...state.activities].slice(0, 50) 
+      };
     default:
       return state;
   }
@@ -83,6 +114,10 @@ export const useSecurityContext = () => {
 export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(securityReducer, initialState);
   const pollingRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    localStorage.setItem('aegios_recent_activities', JSON.stringify(state.activities));
+  }, [state.activities]);
 
   const fetchServices = useCallback(async () => {
     const sessionToken = getSessionToken();
@@ -381,6 +416,18 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     dispatch({ type: 'SET_SCORE', payload: score });
   }, []);
 
+  const addActivity = useCallback((message: string, type: 'success' | 'info' | 'warning') => {
+    dispatch({
+      type: 'ADD_ACTIVITY',
+      payload: {
+        id: Date.now().toString() + Math.random().toString(36).substring(2, 9),
+        type,
+        message,
+        timestamp: new Date()
+      }
+    });
+  }, []);
+
   const refreshData = useCallback(async () => {
     const sessionToken = getSessionToken();
     if (!sessionToken) {
@@ -425,6 +472,8 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       console.log('✅ Action applied:', result.data);
 
       toast.success(result.message || 'Action applied successfully');
+      
+      addActivity(`Applied fix to resource: ${actionType}`, 'success');
 
       // Refresh data after action
       await fetchServices();
@@ -476,6 +525,8 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       dispatch({ type: 'SET_VALIDATION_STATUS', payload: 'success' });
       toast.success(result.message || 'Validation completed');
+      
+      addActivity('Validation checks completed', 'success');
 
       return { success: true, message: result.message || 'Validation completed' };
     } catch (error) {
@@ -540,6 +591,8 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     getActionFindingsByCategory,
     getServicesByCategory,
     refreshData,
+    addActivity,
+    activities: state.activities,
   };
 
   return (

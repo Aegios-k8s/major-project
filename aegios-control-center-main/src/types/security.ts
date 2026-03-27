@@ -78,11 +78,19 @@ export interface SecurityEvent {
   data: Service | K8sScore;
 }
 
+export interface ActivityLog {
+  id: string;
+  type: 'success' | 'info' | 'warning';
+  message: string;
+  timestamp: Date;
+}
+
 export interface SecurityContextType {
   services: Service[];
   score: K8sScore | null;
   actions: K8sResourceActions[];
   findings: K8sPostureFinding[];
+  activities: ActivityLog[];
   isConnected: boolean;
   isLoading: boolean;
   loadingValidation: boolean;
@@ -98,4 +106,5 @@ export interface SecurityContextType {
   getActionFindingsByCategory: (category: string) => K8sPostureFinding[];
   getServicesByCategory: (category: string) => Service[];
   refreshData: () => Promise<void>;
+  addActivity: (message: string, type: 'success' | 'info' | 'warning') => void;
 }
