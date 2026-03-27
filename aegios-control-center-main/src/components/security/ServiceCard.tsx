@@ -23,11 +23,11 @@ const ServiceCard = ({ service }: ServiceCardProps) => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Low':
-        return 'bg-yellow-500/20 text-yellow-500 border-yellow-500';
+        return 'bg-orange-500/20 text-orange-500 border-orange-500';
       case 'High':
-        return 'bg-orange-500/20 text-orange-400 border-orange-500';
+        return 'bg-yellow-500/20 text-yellow-500 border-yellow-500';
       case 'Critical':
-        return 'bg-destructive/20 text-red-500 border-destructive';
+        return 'bg-[#FF0000]/20 text-[#FF0000] border-[#FF0000]';
       default:
         return 'bg-muted/20 text-muted-foreground border-muted';
     }

@@ -27,7 +27,7 @@ const K8sScorePage = () => {
         </p>
       </div>
 
-      <Card className="border-green-500 bg-black rounded-xl glow-border">
+      <Card className="border-cyber-border bg-card glow-border">
         <CardHeader>
           <CardTitle className="text-primary">Namespace Validation</CardTitle>
         </CardHeader>

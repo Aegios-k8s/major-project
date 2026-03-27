@@ -185,6 +185,9 @@ const MainDashboard = () => {
       
       toast.success(result.message || 'Validation completed successfully');
       console.log('✅ Validation completed:', result.data);
+      
+      // Trigger security data refresh
+      window.dispatchEvent(new Event('aegios:login'));
     } catch (error) {
       console.error('❌ Validation error:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to run validation');
@@ -338,7 +341,7 @@ const MainDashboard = () => {
           {/* Validation Report */}
           {normalizedRenderReport && (
             <div className="mt-3 p-4 bg-secondary/50 rounded-md border border-green-500/30 space-y-3">
-              <h4 className="font-semibold text-green-muted">Validation Report</h4>
+              <h4 className="font-semibold text-green-muted">Render Report</h4>
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
                   <span className="text-muted-foreground">Status:</span>
@@ -353,10 +356,10 @@ const MainDashboard = () => {
                   </span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Total Issues:</span>
+                  {/* <span className="text-muted-foreground">Total Issues:</span>
                   <span className="ml-2 text-amber-400 font-medium">
                     {normalizedRenderReport.totalIssues}
-                  </span>
+                  </span> */}
                 </div>
               </div>
             </div>
