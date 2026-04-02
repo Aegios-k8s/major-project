@@ -115,11 +115,17 @@ const ActionCard = ({ finding, onApply }: ActionCardProps) => {
           <p className="text-sm text-foreground whitespace-pre-wrap">{finding.recommendation || "No recommendation provided."}</p>
         </div>
 
-        <div className="flex flex-col md:flex-row justify-end pt-2">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+          <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold">
+            Raise PR
+          </Button>
+          <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold">
+            View Actions
+          </Button>
           <Button
             onClick={handleApply}
             disabled={isApplying}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold min-w-32"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
           >
             {isApplying ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
             Remediate

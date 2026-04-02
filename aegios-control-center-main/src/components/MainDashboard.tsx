@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Shield, Activity, Download, CheckCircle, Database, FileCode } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Shield, Activity, Download, CheckCircle, Database, FileCode, Cloud } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
@@ -12,7 +12,7 @@ import { useSecurityContext } from "@/contexts/SecurityContext";
 const MainDashboard = () => {
   const [isLoadingFetch, setIsLoadingFetch] = useState(false);
   const [isLoadingValidation, setIsLoadingValidation] = useState(false);
-  const [selectedFeature, setSelectedFeature] = useState<string>("");
+
   const [dashboardStats, setDashboardStats] = useState<any>(null);
   const [fetchProgress, setFetchProgress] = useState<string>("");
   const [validationReport, setValidationReport] = useState<any>(null);
@@ -204,22 +204,7 @@ const MainDashboard = () => {
     }
   };
 
-  const handleFeatureSelect = (value: string) => {
-    setSelectedFeature(value);
-    
-    // Navigate to the selected security feature
-    switch (value) {
-      case 'score':
-        navigate('/security-service/k8s-score');
-        break;
-      case 'posture':
-        navigate('/security-service/k8s-posture');
-        break;
-      case 'actions':
-        navigate('/security-service/k8s-action');
-        break;
-    }
-  };
+
 
   return (
     <div className="space-y-6">
@@ -263,7 +248,7 @@ const MainDashboard = () => {
         {/* Data Management Section */}
         <Card 
           id="fetch-section" 
-          className={`border-cyber-border bg-card hover:border-[#29A35C]/50 transition-all duration-700 ${
+          className={`border-cyber-border bg-card hover:border-[#29A35C]/50 transition-all duration-700 h-full ${
             highlightedSection === 'fetch' 
               ? 'ring-2 ring-[#29A35C] shadow-[0_0_20px_rgba(41,163,92,0.25)] scale-[1.02]' 
               : ''
@@ -300,23 +285,7 @@ const MainDashboard = () => {
               )}
             </div>
 
-            {/* Security Features */}
-            <div className="space-y-3 pt-4 border-t border-cyber-border">
-              <h3 className="text-lg font-semibold text-green-muted">Security Features</h3>
-              <p className="text-sm text-muted-foreground">
-                Select a security feature to interact with your Kubernetes resources.
-              </p>
-              <Select value={selectedFeature} onValueChange={handleFeatureSelect}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Choose a security feature" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="score">Interact with K8s Score</SelectItem>
-                  <SelectItem value="posture">Interact with K8s Posture</SelectItem>
-                  <SelectItem value="actions">Interact with K8s Action</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+
 
           </CardContent>
           
@@ -377,6 +346,40 @@ const MainDashboard = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Cloud-AWS Credentials Section */}
+      <Card className="border-cyber-border bg-card hover:border-[#29A35C]/50 transition-all duration-700">
+        <CardHeader>
+          <CardTitle className="text-xl text-green-muted flex items-center gap-2">
+            <Cloud className="h-5 w-5" />
+            Cloud Credentials (AWS)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <p className="text-sm text-muted-foreground mb-4">
+            Connect your AWS environment by providing your credentials to allow seamless access and scanning of cloud resources.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Access Key ID</label>
+              <Input placeholder="Enter AWS Access Key ID" className="bg-background border-cyber-border/50 focus:border-[#29A35C] text-foreground" type="password" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Secret Access Key</label>
+              <Input placeholder="Enter AWS Secret Access Key" className="bg-background border-cyber-border/50 focus:border-[#29A35C] text-foreground" type="password" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Default Region</label>
+              <Input placeholder="e.g. us-east-1" className="bg-background border-cyber-border/50 focus:border-[#29A35C] text-foreground" />
+            </div>
+          </div>
+          <div className="flex justify-end mt-4">
+            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold min-w-32" onClick={() => toast.success("AWS credentials saved")}>
+              Connect AWS
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
