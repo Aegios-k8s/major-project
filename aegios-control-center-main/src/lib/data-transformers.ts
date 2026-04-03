@@ -183,6 +183,7 @@ export function transformFindingsToServices(findings: K8sPostureFinding[]): Serv
         severity,
         missing_kind: finding.missing_kind,
         description: finding.description,
+        recommendation_raw: finding.recommendation,
         issue_type: finding.issue_type,
         owner: `${(finding.check_name || finding.issue_type || 'Security Check').toUpperCase()} • ${severity.toUpperCase()}`,
       },
@@ -239,4 +240,5 @@ export function setSessionToken(token: string): void {
  */
 export function clearSessionToken(): void {
   localStorage.removeItem('aegios_session_token');
+  localStorage.removeItem('aegios_recent_activities');
 }

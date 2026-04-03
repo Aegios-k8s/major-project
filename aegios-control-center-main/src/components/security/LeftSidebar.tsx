@@ -1,14 +1,16 @@
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Github } from "lucide-react";
 
 const LeftSidebar = () => {
   return (
     <Card className="h-fit border-cyber-border bg-card glow-border">
       <CardHeader className="pb-4">
         <div className="flex flex-col items-center gap-3">
-          <Avatar className="h-20 w-20 border-2 border-primary glow-border-strong">
-            <AvatarImage src="/placeholder.svg" alt="Organization" />
-            <AvatarFallback className="bg-secondary text-primary text-xl">AG</AvatarFallback>
+          <Avatar className="h-20 w-20 border-2 border-primary glow-border-strong items-center justify-center">
+            <AvatarFallback className="bg-transparent text-primary flex items-center justify-center h-full w-full">
+              <Github className="h-12 w-12" />
+            </AvatarFallback>
           </Avatar>
         </div>
       </CardHeader>

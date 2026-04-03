@@ -181,7 +181,7 @@ const K8sActionCategoryPage = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold text-green-400 neon-text">{title} Actions</h1>
+          <h1 className="text-3xl font-bold text-primary">{title} Actions</h1>
           <p className="text-green-200/80">Filtered Kubernetes action findings for {title}.</p>
         </div>
         <Button

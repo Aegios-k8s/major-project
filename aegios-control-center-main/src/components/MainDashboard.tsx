@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Shield, Activity, Download, CheckCircle, Database, FileCode } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Shield, Activity, Download, CheckCircle, Database, FileCode, Cloud } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
@@ -12,14 +12,14 @@ import { useSecurityContext } from "@/contexts/SecurityContext";
 const MainDashboard = () => {
   const [isLoadingFetch, setIsLoadingFetch] = useState(false);
   const [isLoadingValidation, setIsLoadingValidation] = useState(false);
-  const [selectedFeature, setSelectedFeature] = useState<string>("");
+
   const [dashboardStats, setDashboardStats] = useState<any>(null);
   const [fetchProgress, setFetchProgress] = useState<string>("");
   const [validationReport, setValidationReport] = useState<any>(null);
   const [highlightedSection, setHighlightedSection] = useState<string | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
-  const { services, score } = useSecurityContext();
+  const { services, score, addActivity } = useSecurityContext();
 
   const normalizedRenderReport = validationReport
     ? {
@@ -132,13 +132,17 @@ const MainDashboard = () => {
 
       setFetchProgress('Scan completed successfully!');
       
-      // Show detailed results
       const data = result.data;
       toast.success(
         `Fetched ${data.total_repos} repositories, scanned ${data.scanned_files} files, found ${data.k8s_resources} K8s resources`,
         { duration: 5000 }
       );
       
+      addActivity(
+        `Fetched ${data.total_repos} repos, found ${data.k8s_resources} K8s resources`,
+        'success'
+      );
+
       console.log('✅ Fetch completed:', data);
       
       // Trigger security data refresh
@@ -180,11 +184,15 @@ const MainDashboard = () => {
         throw new Error(result.message || result.error || 'Failed to run validation');
       }
 
-      // Store validation report for display
       setValidationReport(result.data);
       
       toast.success(result.message || 'Validation completed successfully');
       console.log('✅ Validation completed:', result.data);
+
+      addActivity(
+        `Render completed. Found ${result.data?.vulnerabilities_found || result.data?.total_issues || 0} issues`,
+        'success'
+      );
       
       // Trigger security data refresh
       window.dispatchEvent(new Event('aegios:login'));
@@ -196,22 +204,7 @@ const MainDashboard = () => {
     }
   };
 
-  const handleFeatureSelect = (value: string) => {
-    setSelectedFeature(value);
-    
-    // Navigate to the selected security feature
-    switch (value) {
-      case 'score':
-        navigate('/security-service/k8s-score');
-        break;
-      case 'posture':
-        navigate('/security-service/k8s-posture');
-        break;
-      case 'actions':
-        navigate('/security-service/k8s-action');
-        break;
-    }
-  };
+
 
   return (
     <div className="space-y-6">
@@ -251,119 +244,140 @@ const MainDashboard = () => {
         ))}
       </div>
 
-      {/* Data Management Section */}
-      <Card 
-        id="fetch-section" 
-        className={`border-cyber-border bg-card hover:border-[#29A35C]/50 transition-all duration-700 ${
-          highlightedSection === 'fetch' 
-            ? 'ring-2 ring-[#29A35C] shadow-[0_0_20px_rgba(41,163,92,0.25)] scale-[1.02]' 
-            : ''
-        }`}
-      >
-        <CardHeader>
-          <CardTitle className="text-xl text-green-muted">Data Management</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        {/* Data Management Section */}
+        <Card 
+          id="fetch-section" 
+          className={`border-cyber-border bg-card hover:border-[#29A35C]/50 transition-all duration-700 h-full ${
+            highlightedSection === 'fetch' 
+              ? 'ring-2 ring-[#29A35C] shadow-[0_0_20px_rgba(41,163,92,0.25)] scale-[1.02]' 
+              : ''
+          }`}
+        >
+          <CardHeader>
+            <CardTitle className="text-xl text-green-muted">Data Management</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            
+            {/* Fetch GitHub Data */}
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold text-green-muted">Fetch GitHub Data</h3>
+              <p className="text-sm text-muted-foreground">
+                Scan your GitHub repositories and extract Kubernetes resources for security analysis.
+              </p>
+              <Button 
+                onClick={handleFetchData}
+                disabled={isLoadingFetch}
+                className="w-full"
+                variant="default"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                {isLoadingFetch ? 'Fetching Data...' : 'Fetch Data'}
+              </Button>
+              
+              {/* Progress Indicator */}
+              {fetchProgress && (
+                <div className="mt-3 p-3 bg-secondary/50 rounded-md border border-green-500/30">
+                  <p className="text-sm text-green-muted animate-pulse">
+                    {fetchProgress}
+                  </p>
+                </div>
+              )}
+            </div>
+
+
+
+          </CardContent>
           
-          {/* Fetch GitHub Data */}
-          <div className="space-y-3">
-            <h3 className="text-lg font-semibold text-green-muted">Fetch GitHub Data</h3>
+        </Card>
+
+        {/* Validation Section - Separate */}
+        <Card 
+          id="validation-section" 
+          className={`border-cyber-border bg-card hover:border-[#29A35C]/50 transition-all duration-700 h-full ${
+            highlightedSection === 'validation' 
+              ? 'ring-2 ring-[#29A35C] shadow-[0_0_20px_rgba(41,163,92,0.25)] scale-[1.02]' 
+              : ''
+          }`}
+        >
+          <CardHeader>
+            <CardTitle className="text-xl text-green-muted">Run Render</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Scan your GitHub repositories and extract Kubernetes resources for security analysis.
+              Perform vulnerability detection and security rendering on your resources.
             </p>
             <Button 
-              onClick={handleFetchData}
-              disabled={isLoadingFetch}
+              onClick={handleValidation}
+              disabled={isLoadingValidation}
               className="w-full"
               variant="default"
             >
-              <Download className="mr-2 h-4 w-4" />
-              {isLoadingFetch ? 'Fetching Data...' : 'Fetch Data'}
+              <CheckCircle className="mr-2 h-4 w-4" />
+              {isLoadingValidation ? 'Running Render...' : 'Render'}
             </Button>
             
-            {/* Progress Indicator */}
-            {fetchProgress && (
-              <div className="mt-3 p-3 bg-secondary/50 rounded-md border border-green-500/30">
-                <p className="text-sm text-green-muted animate-pulse">
-                  {fetchProgress}
-                </p>
+            {/* Validation Report */}
+            {normalizedRenderReport && (
+              <div className="mt-3 p-4 bg-secondary/50 rounded-md border border-green-500/30 space-y-3">
+                <h4 className="font-semibold text-green-muted">Render Report</h4>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">Status:</span>
+                    <span className="ml-2 text-green-muted font-medium">
+                      {normalizedRenderReport.status}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Resources Scanned:</span>
+                    <span className="ml-2 text-green-muted font-medium">
+                      {normalizedRenderReport.resourcesScanned}
+                    </span>
+                  </div>
+                  <div>
+                    {/* <span className="text-muted-foreground">Total Issues:</span>
+                    <span className="ml-2 text-amber-400 font-medium">
+                      {normalizedRenderReport.totalIssues}
+                    </span> */}
+                  </div>
+                </div>
               </div>
             )}
-          </div>
+          </CardContent>
+        </Card>
+      </div>
 
-          {/* Security Features */}
-          <div className="space-y-3 pt-4 border-t border-cyber-border">
-            <h3 className="text-lg font-semibold text-green-muted">Security Features</h3>
-            <p className="text-sm text-muted-foreground">
-              Select a security feature to interact with your Kubernetes resources.
-            </p>
-            <Select value={selectedFeature} onValueChange={handleFeatureSelect}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Choose a security feature" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="score">Interact with K8s Score</SelectItem>
-                <SelectItem value="posture">Interact with K8s Posture</SelectItem>
-                <SelectItem value="actions">Interact with K8s Action</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-        </CardContent>
-      </Card>
-
-      {/* Validation Section - Separate */}
-      <Card 
-        id="validation-section" 
-        className={`border-cyber-border bg-card hover:border-[#29A35C]/50 transition-all duration-700 ${
-          highlightedSection === 'validation' 
-            ? 'ring-2 ring-[#29A35C] shadow-[0_0_20px_rgba(41,163,92,0.25)] scale-[1.02]' 
-            : ''
-        }`}
-      >
+      {/* Cloud-AWS Credentials Section */}
+      <Card className="border-cyber-border bg-card hover:border-[#29A35C]/50 transition-all duration-700">
         <CardHeader>
-          <CardTitle className="text-xl text-green-muted">Run Render</CardTitle>
+          <CardTitle className="text-xl text-green-muted flex items-center gap-2">
+            <Cloud className="h-5 w-5" />
+            Cloud Credentials (AWS)
+          </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Perform vulnerability detection and security rendering on your resources.
+        <CardContent className="space-y-6">
+          <p className="text-sm text-muted-foreground mb-4">
+            Connect your AWS environment by providing your credentials to allow seamless access and scanning of cloud resources.
           </p>
-          <Button 
-            onClick={handleValidation}
-            disabled={isLoadingValidation}
-            className="w-full"
-            variant="default"
-          >
-            <CheckCircle className="mr-2 h-4 w-4" />
-            {isLoadingValidation ? 'Running Render...' : 'Render'}
-          </Button>
-          
-          {/* Validation Report */}
-          {normalizedRenderReport && (
-            <div className="mt-3 p-4 bg-secondary/50 rounded-md border border-green-500/30 space-y-3">
-              <h4 className="font-semibold text-green-muted">Render Report</h4>
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div>
-                  <span className="text-muted-foreground">Status:</span>
-                  <span className="ml-2 text-green-muted font-medium">
-                    {normalizedRenderReport.status}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Resources Scanned:</span>
-                  <span className="ml-2 text-green-muted font-medium">
-                    {normalizedRenderReport.resourcesScanned}
-                  </span>
-                </div>
-                <div>
-                  {/* <span className="text-muted-foreground">Total Issues:</span>
-                  <span className="ml-2 text-amber-400 font-medium">
-                    {normalizedRenderReport.totalIssues}
-                  </span> */}
-                </div>
-              </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Access Key ID</label>
+              <Input placeholder="Enter AWS Access Key ID" className="bg-background border-cyber-border/50 focus:border-[#29A35C] text-foreground" type="password" />
             </div>
-          )}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Secret Access Key</label>
+              <Input placeholder="Enter AWS Secret Access Key" className="bg-background border-cyber-border/50 focus:border-[#29A35C] text-foreground" type="password" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Default Region</label>
+              <Input placeholder="e.g. us-east-1" className="bg-background border-cyber-border/50 focus:border-[#29A35C] text-foreground" />
+            </div>
+          </div>
+          <div className="flex justify-end mt-4">
+            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold min-w-32" onClick={() => toast.success("AWS credentials saved")}>
+              Connect AWS
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

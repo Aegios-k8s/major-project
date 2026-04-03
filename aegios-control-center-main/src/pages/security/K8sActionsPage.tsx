@@ -180,7 +180,7 @@ const K8sActionsPage = () => {
     <div className="min-h-[calc(100vh-8rem)] space-y-6">
       {/* Header */}
       <div className="space-y-2">
-        <h1 className="text-3xl font-bold text-primary neon-text">K8s Actions</h1>
+        <h1 className="text-3xl font-bold text-primary">K8s Actions</h1>
         <p className="text-muted-foreground">
           Select a service from the list below to view details and apply security actions.
         </p>
