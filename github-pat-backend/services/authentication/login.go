@@ -54,12 +54,12 @@ func Login(c *gin.Context) {
 	var createdAt time.Time
 
 
-	//Ye code username ke basis par user ka pura credential data database se fetch karke variables me store kar raha hai.
+	var userID int
 	err := database.DB.QueryRow(`
-		SELECT cred_id, org_id, password, is_active, created_at
+		SELECT id, cred_id, org_id, password, is_active, created_at
 		FROM github_credentials
 		WHERE github_username = $1
-	`, req.GitHubUsername).Scan(&credID, &orgID, &passwordHash, &isActive, &createdAt)
+	`, req.GitHubUsername).Scan(&userID, &credID, &orgID, &passwordHash, &isActive, &createdAt)
 
 	if err != nil {
 		response.Unauthorized(c, "invalid credentials", err)
@@ -92,9 +92,9 @@ func Login(c *gin.Context) {
 	expiresAt := time.Now().Add(24 * time.Hour)
 
 	_, err = database.DB.Exec(`
-		INSERT INTO user_sessions (github_username, session_token, expires_at, created_at)
-		VALUES ($1, $2, $3, $4)
-	`, req.GitHubUsername, sessionToken, expiresAt, time.Now())
+		INSERT INTO user_sessions (user_id, org_id, session_token, expires_at, created_at)
+		VALUES ($1, $2, $3, $4, $5)
+	`, userID, orgID, sessionToken, expiresAt, time.Now())
 
 	if err != nil {
 		response.InternalError(c, "failed to create session", err)

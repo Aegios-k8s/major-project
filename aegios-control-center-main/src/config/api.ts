@@ -35,6 +35,8 @@ export const API_CONFIG = {
       ACTIONS: `${API_BASE_URL}/security-service/k8s-action`,
       AGENTIC: `${API_BASE_URL}/security-service/k8s-agentic`,
       VALIDATE_NAMESPACES: `${API_BASE_URL}/security-service/validate-namespaces`,
+      RAISE_PR: `${API_BASE_URL}/security-service/raise-pr`,
+      LIST_BRANCHES: `${API_BASE_URL}/security-service/list-branches`,
     },
   },
 };
