@@ -1,0 +1,15 @@
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# IDE settings
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Secrets and Environment
+.env
+.env.*
+!.env.example
