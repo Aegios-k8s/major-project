@@ -13,3 +13,7 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+# Temporary and Sub-repo files
+Untitled document.txt
+kube-connect-script/

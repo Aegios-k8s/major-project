@@ -1,17 +1,22 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Shield, Activity, Download, CheckCircle, Database, FileCode, Cloud } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Shield, Activity, Download, CheckCircle, Database, FileCode, Terminal } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import { API_CONFIG } from "@/config/api";
 import { getSessionToken } from "@/lib/data-transformers";
 import { useSecurityContext } from "@/contexts/SecurityContext";
+import { AgentConfigUpload } from "@/components/security/AgentConfigUpload";
+import { AgentTerminal, AgentTerminalRef } from "@/components/security/AgentTerminal";
+
 
 const MainDashboard = () => {
   const [isLoadingFetch, setIsLoadingFetch] = useState(false);
   const [isLoadingValidation, setIsLoadingValidation] = useState(false);
+  const [terminalToken, setTerminalToken] = useState<string | null>(null);
+  const terminalRef = useRef<AgentTerminalRef>(null);
 
   const [dashboardStats, setDashboardStats] = useState<any>(null);
   const [fetchProgress, setFetchProgress] = useState<string>("");
@@ -347,37 +352,40 @@ const MainDashboard = () => {
         </Card>
       </div>
 
-      {/* Cloud-AWS Credentials Section */}
+      {/* Terminal Agent Section */}
       <Card className="border-cyber-border bg-card hover:border-[#29A35C]/50 transition-all duration-700">
         <CardHeader>
           <CardTitle className="text-xl text-green-muted flex items-center gap-2">
-            <Cloud className="h-5 w-5" />
-            Cloud Credentials (AWS)
+            <Terminal className="h-5 w-5" />
+            Terminal Agent
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <p className="text-sm text-muted-foreground mb-4">
-            Connect your AWS environment by providing your credentials to allow seamless access and scanning of cloud resources.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Access Key ID</label>
-              <Input placeholder="Enter AWS Access Key ID" className="bg-background border-cyber-border/50 focus:border-[#29A35C] text-foreground" type="password" />
+        <CardContent className="space-y-4">
+          {!terminalToken ? (
+            <>
+              <p className="text-sm text-muted-foreground mb-4">
+                Connect your Kubernetes cluster to remediate vulnerabilities directly from Aegios. 
+                Enter your context name, run the generated command in your terminal, then upload the config file.
+              </p>
+              <AgentConfigUpload onSuccess={(token) => setTerminalToken(token)} />
+            </>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-green-400 flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4" />
+                  Cluster connected — run kubectl commands below.
+                </p>
+                <button
+                  onClick={() => setTerminalToken(null)}
+                  className="text-xs text-muted-foreground hover:text-red-400 transition-colors border border-cyber-border hover:border-red-500/50 px-3 py-1.5 rounded-lg"
+                >
+                  Disconnect
+                </button>
+              </div>
+              <AgentTerminal ref={terminalRef} token={terminalToken} onDisconnect={() => {}} />
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Secret Access Key</label>
-              <Input placeholder="Enter AWS Secret Access Key" className="bg-background border-cyber-border/50 focus:border-[#29A35C] text-foreground" type="password" />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Default Region</label>
-              <Input placeholder="e.g. us-east-1" className="bg-background border-cyber-border/50 focus:border-[#29A35C] text-foreground" />
-            </div>
-          </div>
-          <div className="flex justify-end mt-4">
-            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold min-w-32" onClick={() => toast.success("AWS credentials saved")}>
-              Connect AWS
-            </Button>
-          </div>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -9,6 +9,7 @@ import (
 	"github-pat-backend/pkg/logger"
 	"github-pat-backend/services/authentication"
 	fetchingservice "github-pat-backend/services/fetching-service"
+	kubeagentservice "github-pat-backend/services/kube-agent-service"
 	securityservice "github-pat-backend/services/security-service"
 
 	"github.com/gin-gonic/gin"
@@ -81,6 +82,9 @@ func main() {
 	securityGroup := router.Group("/security-service")
 	securityservice.RegisterRoutes(securityGroup)
 
+	sessionGroup := router.Group("/session")
+	kubeagentservice.RegisterRoutes(sessionGroup)
+
 	// Start server
 	appLogger.Info("🚀 Aegios Backend starting...")
 	appLogger.Info("📍 Server running on http://localhost:" + serverPort)
@@ -89,6 +93,7 @@ func main() {
 	appLogger.Info("   - Authentication: /authentication/*")
 	appLogger.Info("   - Fetching Service: /fetching-service/*")
 	appLogger.Info("   - Security Service: /security-service/*")
+	appLogger.Info("   - Session (Kube Agent): /session/*")
 
 	if err := router.Run(":" + serverPort); err != nil {
 		log.Fatal("❌ Server failed to start:", err)

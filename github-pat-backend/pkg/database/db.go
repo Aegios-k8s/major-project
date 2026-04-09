@@ -193,6 +193,42 @@ func createTables() error {
 	ALTER TABLE findings ADD COLUMN IF NOT EXISTS detected_at TIMESTAMPTZ;
 	-- Back-fill detected_at from created_at for existing rows
 	UPDATE findings SET detected_at = created_at WHERE detected_at IS NULL;
+
+	-- =========================
+	-- CONFIG CREDENTIALS (TERMINAL)
+	-- =========================
+	CREATE TABLE IF NOT EXISTS config_credentials (
+		id SERIAL PRIMARY KEY,
+		org_id VARCHAR(10) NOT NULL,
+		context_name VARCHAR(255) NOT NULL,
+		config_file TEXT NOT NULL,
+		token VARCHAR(64) UNIQUE NOT NULL,
+		created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+		CONSTRAINT fk_config_cred_org
+			FOREIGN KEY (org_id)
+			REFERENCES organization(org_id)
+			ON DELETE CASCADE
+	);
+
+	-- =========================
+	-- AGENT OUTPUT
+	-- =========================
+	CREATE TABLE IF NOT EXISTS agent_output (
+		id SERIAL PRIMARY KEY,
+		org_id VARCHAR(10) NOT NULL,
+		session_token VARCHAR(64) NOT NULL,
+		correct_config TEXT,
+		command TEXT NOT NULL,
+		created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+		CONSTRAINT fk_agent_output_org
+			FOREIGN KEY (org_id)
+			REFERENCES organization(org_id)
+			ON DELETE CASCADE,
+		CONSTRAINT fk_agent_output_session
+			FOREIGN KEY (session_token)
+			REFERENCES config_credentials(token)
+			ON DELETE CASCADE
+	);
 	`
 
 	_, err := DB.Exec(query)
