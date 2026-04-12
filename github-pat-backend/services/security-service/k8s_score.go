@@ -19,11 +19,9 @@ type ScoreResponse struct {
 	TotalFindings      int     `json:"total_findings"`
 	Critical           int     `json:"critical"`
 	High               int     `json:"high"`
-	Medium             int     `json:"medium"`
 	Low                int     `json:"low"`
 	CriticalPercentage float64 `json:"critical_percentage"`
 	HighPercentage     float64 `json:"high_percentage"`
-	MediumPercentage   float64 `json:"medium_percentage"`
 	LowPercentage      float64 `json:"low_percentage"`
 	SecurityScore      float64 `json:"security_score"`
 	OverallGrade       string  `json:"overall_grade"`
@@ -98,11 +96,9 @@ func calculateSecurityScore(findings []findingSeverityRow) ScoreResponse {
 			TotalFindings:      0,
 			Critical:           0,
 			High:               0,
-			Medium:             0,
 			Low:                0,
 			CriticalPercentage: 0,
 			HighPercentage:     0,
-			MediumPercentage:   0,
 			LowPercentage:      0,
 			SecurityScore:      0,
 			OverallGrade:       "N/A",
@@ -113,7 +109,6 @@ func calculateSecurityScore(findings []findingSeverityRow) ScoreResponse {
 
 	criticalCount := 0
 	highCount := 0
-	mediumCount := 0
 	lowCount := 0
 	totalWeight := 0
 
@@ -121,37 +116,32 @@ func calculateSecurityScore(findings []findingSeverityRow) ScoreResponse {
 		switch strings.ToLower(strings.TrimSpace(finding.Severity)) {
 		case "critical":
 			criticalCount++
-			totalWeight += 4
+			totalWeight += 5
 		case "high":
 			highCount++
 			totalWeight += 3
-		case "medium":
-			mediumCount++
-			totalWeight += 2
 		default:
+			// "low", "medium" (legacy), or any other value → treated as low
 			lowCount++
 			totalWeight += 1
 		}
 	}
 
-	maxWeight := totalFindings * 4
+	maxWeight := totalFindings * 5
 	securityScore := ((float64(maxWeight) - float64(totalWeight)) / float64(maxWeight)) * 100.0
 	securityScore = roundToTwo(securityScore)
 
 	criticalPct := roundToTwo((float64(criticalCount) / float64(totalFindings)) * 100.0)
 	highPct := roundToTwo((float64(highCount) / float64(totalFindings)) * 100.0)
-	mediumPct := roundToTwo((float64(mediumCount) / float64(totalFindings)) * 100.0)
 	lowPct := roundToTwo((float64(lowCount) / float64(totalFindings)) * 100.0)
 
 	return ScoreResponse{
 		TotalFindings:      totalFindings,
 		Critical:           criticalCount,
 		High:               highCount,
-		Medium:             mediumCount,
 		Low:                lowCount,
 		CriticalPercentage: criticalPct,
 		HighPercentage:     highPct,
-		MediumPercentage:   mediumPct,
 		LowPercentage:      lowPct,
 		SecurityScore:      securityScore,
 		OverallGrade:       getGrade(securityScore),
@@ -180,9 +170,9 @@ func getCriticalityLevel(score float64) string {
 	case score >= 80:
 		return "Low"
 	case score >= 60:
-		return "Medium"
-	default:
 		return "High"
+	default:
+		return "Critical"
 	}
 }
 

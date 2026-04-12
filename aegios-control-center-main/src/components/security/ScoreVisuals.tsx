@@ -5,9 +5,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle } from 'lucide-react';
 
 const COLORS = {
-  Good: '#29A35C', // Primary green
-  Low: '#f59e0b', // Softer amber (Tailwind amber-500)
-  Critical: '#ef4444'
+  Low: '#f97316',    // Tailwind orange-500
+  High: '#eab308',   // Tailwind yellow-500
+  Critical: '#FF0000' // Pure red
 };
 
 const ScoreVisuals = () => {
@@ -66,14 +66,15 @@ const ScoreVisuals = () => {
   }
 
   const pieData = [
-    { name: 'Good', value: score.percentages.Good, count: score.counts.Good },
-    { name: 'Low', value: score.percentages.Low, count: score.counts.Low },
-    { name: 'Critical', value: score.percentages.Critical, count: score.counts.Critical }
+    { name: 'Low', value: score.percentages.Low, count: score.counts.Low, colorKey: 'Low' },
+    { name: 'High', value: score.percentages.High, count: score.counts.High, colorKey: 'High' },
+    { name: 'Critical', value: score.percentages.Critical, count: score.counts.Critical, colorKey: 'Critical' }
   ].filter(item => item.value > 0);
 
   const barData = [
-    { name: 'Low Risk', count: score.counts.Good + score.counts.Low, percentage: score.percentages.Good + score.percentages.Low },
-    { name: 'Critical Risk', count: score.counts.Critical, percentage: score.percentages.Critical }
+    { name: 'Low', count: score.counts.Low, percentage: score.percentages.Low },
+    { name: 'High', count: score.counts.High, percentage: score.percentages.High },
+    { name: 'Critical', count: score.counts.Critical, percentage: score.percentages.Critical }
   ];
 
   const CustomTooltip = ({ active, payload }: any) => {
@@ -112,7 +113,7 @@ const ScoreVisuals = () => {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* Pie Chart */}
-      <Card className="border-cyber-border bg-card hover:border-green-500/50 transition-all duration-300">
+      <Card className="border-cyber-border bg-card glow-border hover:border-green-500/50 transition-all duration-300">
         <CardHeader>
           <CardTitle className="text-green-muted">Security Status Distribution</CardTitle>
         </CardHeader>
@@ -131,9 +132,10 @@ const ScoreVisuals = () => {
                 outerRadius={90}
                 fill="#8884d8"
                 dataKey="value"
+                stroke="#000000"
               >
                 {pieData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[entry.name as keyof typeof COLORS]} />
+                  <Cell key={`cell-${index}`} fill={COLORS[entry.colorKey as keyof typeof COLORS]} stroke="#000000" />
                 ))}
               </Pie>
               <Tooltip content={<CustomTooltip />} cursor={false} />
@@ -143,7 +145,7 @@ const ScoreVisuals = () => {
       </Card>
 
       {/* Bar Chart */}
-      <Card className="border-cyber-border bg-card hover:border-green-500/50 transition-all duration-300">
+      <Card className="border-cyber-border bg-card glow-border hover:border-green-500/50 transition-all duration-300">
         <CardHeader>
           <CardTitle className="text-green-muted">Risk Levels</CardTitle>
         </CardHeader>
@@ -167,14 +169,12 @@ const ScoreVisuals = () => {
               />
               <Bar 
                 dataKey="count" 
-                fill="#29A35C"
                 radius={[4, 4, 0, 0]}
-                activeBar={{
-                  stroke: '#29A35C',
-                  strokeWidth: 2,
-                  fill: '#29A35C'
-                }}
-              />
+              >
+                {barData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[entry.name as keyof typeof COLORS]} />
+                ))}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </CardContent>

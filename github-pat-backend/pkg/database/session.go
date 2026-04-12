@@ -25,10 +25,17 @@ func CreateSession(githubUsername string) (string, error) {
 
 	expiresAt := time.Now().Add(24 * time.Hour) // 24 hour session
 
+	var userID int
+	var orgID string
+	err = DB.QueryRow(`SELECT id, org_id FROM github_credentials WHERE github_username = $1`, githubUsername).Scan(&userID, &orgID)
+	if err != nil {
+		return "", err
+	}
+
 	_, err = DB.Exec(
-		`INSERT INTO user_sessions (github_username, session_token, expires_at, created_at)
-		 VALUES ($1, $2, $3, $4)`,
-		githubUsername, token, expiresAt, time.Now(),
+		`INSERT INTO user_sessions (user_id, org_id, session_token, expires_at, created_at)
+		 VALUES ($1, $2, $3, $4, $5)`,
+		userID, orgID, token, expiresAt, time.Now(),
 	)
 
 	if err != nil {
@@ -44,9 +51,10 @@ func ValidateSession(token string) (string, error) {
 	var expiresAt time.Time
 
 	err := DB.QueryRow(
-		`SELECT github_username, expires_at 
-		 FROM user_sessions 
-		 WHERE session_token = $1`,
+		`SELECT gc.github_username, us.expires_at 
+		 FROM user_sessions us
+		 JOIN github_credentials gc ON us.user_id = gc.id
+		 WHERE us.session_token = $1`,
 		token,
 	).Scan(&githubUsername, &expiresAt)
 
@@ -72,9 +80,16 @@ func InvalidateSession(token string) error {
 
 // Invalidate all user sessions (logout from all devices)
 func InvalidateAllUserSessions(githubUsername string) error {
-	_, err := DB.Exec(
-		`DELETE FROM user_sessions WHERE github_username = $1`,
-		githubUsername,
+	// Find the user_id first
+	var userID int
+	err := DB.QueryRow(`SELECT id FROM github_credentials WHERE github_username = $1`, githubUsername).Scan(&userID)
+	if err != nil {
+		return err
+	}
+	
+	_, err = DB.Exec(
+		`DELETE FROM user_sessions WHERE user_id = $1`,
+		userID,
 	)
 	return err
 }

@@ -10,9 +10,18 @@ findings-service
 organization-service
 helm-service
 api-gateway
+test_build
 
 # Environment
 .env
+.env.*
+!.env.example
+
+# Files
+*.sql
+*.bat
+*.ps1
+!test_complete_flow.bat
 
 # IDE
 .vscode/
@@ -26,6 +35,7 @@ Thumbs.db
 *.test
 *.out
 vendor/
+go.sum_
 
 # Database
 *.db

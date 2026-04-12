@@ -18,6 +18,7 @@ import K8sCategoryPage from "./pages/security/K8sCategoryPage";
 import LoginPage from "./pages/auth/LoginPage";
 import SignupPage from "./pages/auth/SignupPage";
 import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
+import TerminalAgentPage from "./pages/security/TerminalAgentPage";
 
 const queryClient = new QueryClient();
 
@@ -62,6 +63,7 @@ const App = () => (
                   <Route path="k8s-posture/:category" element={<K8sCategoryPage />} />
                   <Route path="k8s-action" element={<K8sActionLanding />} />
                   <Route path="k8s-action/:category" element={<K8sActionCategoryPage />} />
+                  <Route path="terminal" element={<TerminalAgentPage />} />
                 </Route>
               </Route>
 
@@ -79,6 +81,7 @@ const App = () => (
                   <Route path="k8s-action" element={<K8sActionLanding />} />
                   <Route path="k8s-action/:category" element={<K8sActionCategoryPage />} />
                   <Route path="k8s-actions/:serviceId" element={<K8sActionLanding />} />
+                  <Route path="terminal" element={<TerminalAgentPage />} />
                 </Route>
               </Route>
               

@@ -65,12 +65,12 @@ const K8sPosturePage = () => {
           {services.filter(s => s.status === 'Critical').length}
         </span></span>
         <span>•</span>
-        <span>Low Risk: <span className="text-yellow-500 font-semibold">
-          {services.filter(s => s.status === 'Low').length}
+        <span>High: <span className="text-orange-500 font-semibold">
+          {services.filter(s => s.status === 'High').length}
         </span></span>
         <span>•</span>
-        <span>Good: <span className="text-primary font-semibold">
-          {services.filter(s => s.status === 'Good').length}
+        <span>Low: <span className="text-yellow-500 font-semibold">
+          {services.filter(s => s.status === 'Low').length}
         </span></span>
       </div>
 

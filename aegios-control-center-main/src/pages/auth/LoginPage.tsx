@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import InteractiveBackground from '@/components/ui/interactive-background';
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -36,8 +37,10 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <Card className="w-full max-w-md border-cyber-border bg-card glow-border">
+    <>
+      <InteractiveBackground />
+      <div className="min-h-screen flex items-center justify-center p-4 relative z-10">
+        <Card className="w-full max-w-md border-cyber-border bg-card/80 backdrop-blur-md glow-border">
         <CardHeader className="text-center space-y-4">
           <div className="flex justify-center">
             <Shield className="h-12 w-12 text-primary glow-text" />
@@ -90,7 +93,7 @@ const LoginPage = () => {
 
             <Button
               type="submit"
-              className="w-full bg-primary hover:bg-primary/90 text-background"
+              className="w-full bg-primary hover:bg-primary/90 text-background transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_0_20px_hsl(145,60%,40%,0.5)]"
               disabled={isLoading}
             >
               {isLoading ? 'Signing in...' : 'Sign In'}
@@ -108,7 +111,8 @@ const LoginPage = () => {
           </form>
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </>
   );
 };
 

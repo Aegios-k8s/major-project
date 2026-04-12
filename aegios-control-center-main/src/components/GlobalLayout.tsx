@@ -21,9 +21,9 @@ const GlobalLayout = () => {
           <Outlet />
         </main>
 
-        {/* Right Sidebar - Desktop Only (Normal Flow) */}
+        {/* Right Sidebar - Desktop Only (Static Flow) */}
         <aside 
-          className="hidden lg:block w-80 bg-background border-l border-cyber-border/60 min-h-[calc(100vh-8rem)]"
+          className="hidden lg:block w-80 bg-background border-l border-cyber-border/60 sticky top-16 self-start h-[calc(100vh-4rem)] overflow-y-auto"
           style={{ 
             boxShadow: '-2px 0 10px rgba(0, 255, 65, 0.06)'
           }}

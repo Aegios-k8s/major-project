@@ -11,69 +11,90 @@ import { K8sPostureFinding, K8sResourceActions } from "@/types/security";
 const CATEGORY_LABELS: Record<string, string> = {
   rbac: "RBAC",
   "network-policy": "Network Policy",
-  "container-port": "Container Port",
-  pod: "Pod",
-  "container-image": "Container Image",
+  "service-port": "Service Port",
+  "resource-limit": "Resource Limit",
+  "container-security": "Container Security",
+  "container-port": "Service Port",
+  pod: "Resource Limit",
+  "container-image": "Container Security",
   secrets: "Secrets",
 };
 
 const severityFromPriority = (priority: string): string => {
   const normalized = (priority || "").toLowerCase();
-  if (["critical", "high", "medium", "low"].includes(normalized)) {
+  if (["critical", "high", "low"].includes(normalized)) {
     return normalized;
+  }
+  if (normalized === "medium") {
+    return "low";
   }
   return "high";
 };
 
 const mapActionsToFindingCards = (category: string, resources: K8sResourceActions[]): K8sPostureFinding[] => {
   const actionCards: K8sPostureFinding[] = [];
+  const normalizedCategory = category.toLowerCase();
+  const isServicePort = normalizedCategory === "service-port" || normalizedCategory === "container-port";
+  const isResourceLimit = normalizedCategory === "resource-limit" || normalizedCategory === "pod";
+  const isContainerSecurity = normalizedCategory === "container-security" || normalizedCategory === "container-image";
 
   resources.forEach((resource) => {
     const kind = (resource.kind || "").toLowerCase();
-    const actionTextBlob = (resource.actions || [])
-      .map((action) => `${action.type} ${action.description} ${action.remediation}`)
-      .join(" ")
-      .toLowerCase();
-
-    const belongsToCategory = (() => {
-      if (category === "rbac") {
-        return ["role", "clusterrole", "rolebinding", "clusterrolebinding", "serviceaccount"].includes(kind) || actionTextBlob.includes("rbac");
-      }
-      if (category === "network-policy") {
-        return kind === "networkpolicy" || actionTextBlob.includes("network policy") || actionTextBlob.includes("ingress") || actionTextBlob.includes("egress");
-      }
-      if (category === "container-port") {
-        return kind === "service" || actionTextBlob.includes("port") || actionTextBlob.includes("nodeport") || actionTextBlob.includes("targetport");
-      }
-      if (category === "pod") {
-        return ["pod", "deployment", "daemonset"].includes(kind) || actionTextBlob.includes("pod security") || actionTextBlob.includes("privileged");
-      }
-      if (category === "container-image") {
-        return actionTextBlob.includes("image") || actionTextBlob.includes("tag") || actionTextBlob.includes("registry");
-      }
-      if (category === "secrets") {
-        return ["secret", "configmap"].includes(kind) || actionTextBlob.includes("secret") || actionTextBlob.includes("password") || actionTextBlob.includes("token");
-      }
-      return false;
-    })();
-
-    if (!belongsToCategory) {
-      return;
-    }
 
     (resource.actions || []).forEach((action, index) => {
-      actionCards.push({
-        finding_id: `${resource.resource_id}-${index}`,
-        resource_id: resource.resource_id,
-        namespace: resource.namespace || "default",
-        name: resource.name,
-        kind: resource.kind,
-        issue_type: category,
-        severity: severityFromPriority(action.priority),
-        description: action.description || action.type,
-        recommendation: action.remediation,
-        detected_at: new Date().toISOString(),
-      });
+      const actionTextBlob = `${action.type} ${action.description} ${action.remediation}`.toLowerCase();
+
+      const belongsToCategory = (() => {
+        if (category === "rbac") {
+          return ["role", "clusterrole", "rolebinding", "clusterrolebinding", "serviceaccount"].includes(kind) || actionTextBlob.includes("rbac");
+        }
+        if (category === "network-policy") {
+          return kind === "networkpolicy" || actionTextBlob.includes("network policy") || actionTextBlob.includes("ingress") || actionTextBlob.includes("egress");
+        }
+        if (isServicePort) {
+          return kind === "service" || actionTextBlob.includes("port") || actionTextBlob.includes("nodeport") || actionTextBlob.includes("targetport");
+        }
+        if (isResourceLimit) {
+          return actionTextBlob.includes("resource configuration") ||
+            actionTextBlob.includes("resource requests") ||
+            actionTextBlob.includes("resource limits") ||
+            actionTextBlob.includes("requests.cpu") ||
+            actionTextBlob.includes("limits.cpu") ||
+            actionTextBlob.includes("requests.memory") ||
+            actionTextBlob.includes("limits.memory");
+        }
+        if (isContainerSecurity) {
+          return actionTextBlob.includes("privileged") ||
+            actionTextBlob.includes("runasuser") ||
+            actionTextBlob.includes("running as root") ||
+            actionTextBlob.includes("allow privilege escalation") ||
+            actionTextBlob.includes("allowprivilegeescalation") ||
+            actionTextBlob.includes("image") ||
+            actionTextBlob.includes("tag") ||
+            actionTextBlob.includes("registry") ||
+            actionTextBlob.includes("non-root") ||
+            actionTextBlob.includes("non_root");
+        }
+        if (category === "secrets") {
+          return ["secret", "configmap"].includes(kind) || actionTextBlob.includes("secret") || actionTextBlob.includes("password") || actionTextBlob.includes("token");
+        }
+        return false;
+      })();
+
+      if (belongsToCategory) {
+        actionCards.push({
+          finding_id: `${resource.resource_id}-${index}`,
+          resource_id: resource.resource_id,
+          namespace: resource.namespace || "default",
+          name: resource.name,
+          kind: resource.kind,
+          issue_type: category,
+          severity: severityFromPriority(action.priority),
+          description: action.description || action.type,
+          recommendation: action.remediation,
+          detected_at: new Date().toISOString(),
+        });
+      }
     });
   });
 
@@ -108,7 +129,12 @@ const K8sActionCategoryPage = () => {
 
   const criticalCount = findings.filter((finding) => {
     const severity = (finding.severity || "").toLowerCase();
-    return severity === "critical" || severity === "high";
+    return severity === "critical";
+  }).length;
+
+  const highCount = findings.filter((finding) => {
+    const severity = (finding.severity || "").toLowerCase();
+    return severity === "high";
   }).length;
 
   const lowCount = findings.filter((finding) => {
@@ -155,7 +181,7 @@ const K8sActionCategoryPage = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold text-green-400 neon-text">{title} Actions</h1>
+          <h1 className="text-3xl font-bold text-primary">{title} Actions</h1>
           <p className="text-green-200/80">Filtered Kubernetes action findings for {title}.</p>
         </div>
         <Button
@@ -171,9 +197,11 @@ const K8sActionCategoryPage = () => {
       <div className="flex items-center gap-4 text-sm text-green-200/80">
         <span>Total Findings: <span className="text-green-300 font-semibold">{findings.length}</span></span>
         <span>•</span>
-        <span>Critical: <span className="text-red-400 font-semibold">{criticalCount}</span></span>
+        <span>Critical: <span className="text-[#FF0000] font-semibold">{criticalCount}</span></span>
         <span>•</span>
-        <span>Low Risk: <span className="text-yellow-300 font-semibold">{lowCount}</span></span>
+        <span>High: <span className="text-yellow-300 font-semibold">{highCount}</span></span>
+        <span>•</span>
+        <span>Low: <span className="text-orange-300 font-semibold">{lowCount}</span></span>
       </div>
 
       {findings.length === 0 ? (

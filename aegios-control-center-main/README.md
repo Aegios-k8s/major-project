@@ -1,73 +1,65 @@
-# Welcome to your Lovable project
+# Aegios Control Center - Frontend
 
-## Project info
+A modern, high-performance security dashboard built with **React**, **Vite**, **TypeScript**, and **Tailwind CSS**. Aegios provides a premium, interactive interface for Kubernetes security monitoring and remediation.
 
-**URL**: https://lovable.dev/projects/cf098446-3f47-4e39-8c76-c5d08da0eabc
+## 🎨 Design System
 
-## How can I edit this code?
+Aegios uses a custom, premium design system inspired by modern security operations centers:
+- **Style**: Sleek dark mode with glassmorphism and vibrant emerald-green accents.
+- **Typography**: Modern fonts (Inter/Roboto) for maximum legibility.
+- **UI Components**: Built on **Shadcn UI** for consistency and accessibility.
+- **Animations**: Subtle micro-animations for interactive feedback.
 
-There are several ways of editing your application.
+---
 
-**Use Lovable**
+## 🏗️ Project Architecture
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/cf098446-3f47-4e39-8c76-c5d08da0eabc) and start prompting.
+The frontend is organized for scalability and maintainability:
 
-Changes made via Lovable will be committed automatically to this repo.
+### 🧩 Core Directories
+- **`/src/components/`**: Reusable UI and feature components (e.g., Security, UI, Layout).
+- **`/src/contexts/`**: Global state management for Authentication and Security data.
+- **`/src/pages/`**: Page-level components for Dashboard, Auth, and Security modules.
+- **`/src/config/`**: Centralized API and environment settings.
+- **`/src/lib/`**: API clients, data transformers, and utility functions.
 
-**Use your preferred IDE**
+### 📁 Technical Stack
+- **Framework**: React 18 with Vite.
+- **Styling**: Tailwind CSS & Vanilla CSS.
+- **Icons**: Lucide React.
+- **Charts**: Recharts for security score visualization.
+- **Notifications**: Sonner for real-time toast feedback.
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+---
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## 🚀 Setup & Local Development
 
-Follow these steps:
+### 1. Prerequisites
+- **Node.js**: 18+ (LTS recommended)
+- **NPM** or **Bun**: Package manager.
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+### 2. Configuration
+Create a `.env` file in the frontend directory:
+```env
+VITE_API_BASE_URL=http://localhost:8080
 ```
 
-**Edit a file directly in GitHub**
+### 3. Run Manually
+```bash
+npm install
+npm run dev
+```
+The application will run on [http://localhost:8081](http://localhost:8081).
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+---
 
-**Use GitHub Codespaces**
+## 🧭 Pages & Navigation
+- **Dashboard (`/`)**: High-level overview of organization stats and security posture.
+- **K8s Posture (`/security/k8s-posture`)**: Detailed view of namespace groupings and service cards.
+- **K8s Score (`/security/k8s-score`)**: Interactive security scoring with breakdown by category.
+- **K8s Actions (`/security/k8s-actions`)**: Remediation dashboard with AI-powered "Apply" commands.
+- **Auth (`/login`, `/signup`)**: Secure authentication and organization onboarding.
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+---
 
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/cf098446-3f47-4e39-8c76-c5d08da0eabc) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+**Last Updated**: April 4, 2026

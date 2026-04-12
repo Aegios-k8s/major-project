@@ -140,6 +140,9 @@ func createTables() error {
 			UNIQUE (commit_sha, content_hash)
 	);
 
+	-- Ensure legacy content column is removed (idempotent migration)
+	ALTER TABLE github_files DROP COLUMN IF EXISTS content;
+
 	-- =========================
 	-- KUBERNETES RESOURCE
 	-- =========================
@@ -170,7 +173,7 @@ func createTables() error {
 	CREATE TABLE IF NOT EXISTS findings (
 		finding_id VARCHAR(6) PRIMARY KEY,
 		org_id VARCHAR(10) NOT NULL,
-		resource_id VARCHAR(6) NOT NULL,
+		resource_id VARCHAR(6),
 		severity VARCHAR(50) NOT NULL,
 		description TEXT,
 		recommendations TEXT,
@@ -179,10 +182,51 @@ func createTables() error {
 		CONSTRAINT fk_finding_org
 			FOREIGN KEY (org_id)
 			REFERENCES organization(org_id)
+			ON DELETE CASCADE
+	);
+
+	-- Idempotent migrations: add columns required by the validation service
+	ALTER TABLE findings DROP CONSTRAINT IF EXISTS fk_finding_resource;
+	ALTER TABLE findings ALTER COLUMN resource_id DROP NOT NULL;
+	ALTER TABLE findings ADD COLUMN IF NOT EXISTS namespace VARCHAR(255);
+	ALTER TABLE findings ADD COLUMN IF NOT EXISTS missing_kind VARCHAR(100);
+	ALTER TABLE findings ADD COLUMN IF NOT EXISTS detected_at TIMESTAMPTZ;
+	-- Back-fill detected_at from created_at for existing rows
+	UPDATE findings SET detected_at = created_at WHERE detected_at IS NULL;
+
+	-- =========================
+	-- CONFIG CREDENTIALS (TERMINAL)
+	-- =========================
+	CREATE TABLE IF NOT EXISTS config_credentials (
+		id SERIAL PRIMARY KEY,
+		org_id VARCHAR(10) NOT NULL,
+		context_name VARCHAR(255) NOT NULL,
+		config_file TEXT NOT NULL,
+		token VARCHAR(64) UNIQUE NOT NULL,
+		created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+		CONSTRAINT fk_config_cred_org
+			FOREIGN KEY (org_id)
+			REFERENCES organization(org_id)
+			ON DELETE CASCADE
+	);
+
+	-- =========================
+	-- AGENT OUTPUT
+	-- =========================
+	CREATE TABLE IF NOT EXISTS agent_output (
+		id SERIAL PRIMARY KEY,
+		org_id VARCHAR(10) NOT NULL,
+		session_token VARCHAR(64) NOT NULL,
+		correct_config TEXT,
+		command TEXT NOT NULL,
+		created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+		CONSTRAINT fk_agent_output_org
+			FOREIGN KEY (org_id)
+			REFERENCES organization(org_id)
 			ON DELETE CASCADE,
-		CONSTRAINT fk_finding_resource
-			FOREIGN KEY (resource_id)
-			REFERENCES kubernetes_resource(resource_id)
+		CONSTRAINT fk_agent_output_session
+			FOREIGN KEY (session_token)
+			REFERENCES config_credentials(token)
 			ON DELETE CASCADE
 	);
 	`

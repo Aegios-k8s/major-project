@@ -10,9 +10,12 @@ import { useSecurityContext } from "@/contexts/SecurityContext";
 const CATEGORY_LABELS: Record<string, string> = {
   rbac: "RBAC",
   "network-policy": "Network Policy",
-  "container-port": "Container Port",
-  pod: "Pod",
-  "container-image": "Container Image",
+  "service-port": "Service Port",
+  "resource-limit": "Resource Limit",
+  "container-security": "Container Security",
+  "container-port": "Service Port",
+  pod: "Resource Limit",
+  "container-image": "Container Security",
   secrets: "Secrets",
 };
 
@@ -31,8 +34,8 @@ const K8sCategoryPage = () => {
   const services = useMemo(() => getServicesByCategory(normalizedCategory), [getServicesByCategory, normalizedCategory]);
 
   const criticalCount = services.filter((service) => service.status === "Critical").length;
+  const highCount = services.filter((service) => service.status === "High").length;
   const lowCount = services.filter((service) => service.status === "Low").length;
-  const goodCount = services.filter((service) => service.status === "Good").length;
 
   if (!CATEGORY_LABELS[normalizedCategory]) {
     return (
@@ -91,11 +94,11 @@ const K8sCategoryPage = () => {
       <div className="flex items-center gap-4 text-sm text-muted-foreground">
         <span>Total Findings: <span className="text-primary font-semibold">{services.length}</span></span>
         <span>•</span>
-        <span>Critical: <span className="text-red-500 font-semibold">{criticalCount}</span></span>
+        <span>Critical: <span className="text-[#FF0000] font-semibold">{criticalCount}</span></span>
         <span>•</span>
-        <span>Low Risk: <span className="text-yellow-500 font-semibold">{lowCount}</span></span>
+        <span>High: <span className="text-yellow-500 font-semibold">{highCount}</span></span>
         <span>•</span>
-        <span>Good: <span className="text-primary font-semibold">{goodCount}</span></span>
+        <span>Low: <span className="text-orange-500 font-semibold">{lowCount}</span></span>
       </div>
 
       {services.length === 0 ? (

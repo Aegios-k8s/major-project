@@ -2,7 +2,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useSecurityContext } from "@/contexts/SecurityContext";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Shield, CheckCircle, AlertTriangle, AlertCircle } from "lucide-react";
+import { Shield, CheckCircle, AlertCircle } from "lucide-react";
 
 const SecurityOverview = () => {
   const { score, isLoading } = useSecurityContext();
@@ -46,11 +46,11 @@ const SecurityOverview = () => {
   const getCriticalityColor = (level: string) => {
     switch (level) {
       case 'Low':
-        return 'bg-primary/20 text-primary border-primary';
-      case 'Medium':
-        return 'bg-yellow-500/20 text-yellow-500 border-yellow-500';
+        return 'bg-orange-500/20 text-orange-500 border-orange-500';
       case 'High':
-        return 'bg-destructive/20 text-destructive border-destructive';
+        return 'bg-yellow-500/20 text-yellow-500 border-yellow-500';
+      case 'Critical':
+        return 'bg-[#FF0000]/20 text-[#FF0000] border-[#FF0000]';
       default:
         return 'bg-muted/20 text-muted-foreground border-muted';
     }
@@ -60,19 +60,19 @@ const SecurityOverview = () => {
     switch (level) {
       case 'Low':
         return <CheckCircle className="h-4 w-4" />;
-      case 'Medium':
-        return <AlertTriangle className="h-4 w-4" />;
       case 'High':
+        return <AlertCircle className="h-4 w-4" />;
+      case 'Critical':
         return <AlertCircle className="h-4 w-4" />;
       default:
         return <Shield className="h-4 w-4" />;
     }
   };
 
-  const narrativeText = `${score.counts.Critical} findings are Critical Risk, ${score.counts.Low} are Low Risk, ${score.counts.Good} are Good.`;
+  const narrativeText = `${score.counts.Critical} findings are Critical, ${score.counts.High} are High, ${score.counts.Low} are Low.`;
 
   return (
-    <Card className="neon-border bg-card">
+    <Card className="border-cyber-border bg-card glow-border">
       <CardContent className="p-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-center">
           {/* Left Column - Big Score Number */}
@@ -108,23 +108,23 @@ const SecurityOverview = () => {
           {/* Right Column - Metric Tiles */}
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center p-3 rounded-lg bg-secondary/50 ">
-              <div className="text-2xl font-bold text-primary ">
-                {score.counts.Good}
+              <div className="text-2xl font-bold text-orange-500">
+                {score.counts.Low}
               </div>
               <div className="text-xs text-muted-foreground uppercase tracking-wide">
-                Good
+                Low
               </div>
             </div>
             <div className="text-center p-3 rounded-lg bg-secondary/50 ">
               <div className="text-2xl font-bold text-yellow-500">
-                {score.counts.Low}
+                {score.counts.High}
               </div>
               <div className="text-xs text-muted-foreground uppercase tracking-wide">
-                Low Risk
+                High
               </div>
             </div>
             <div className="text-center p-3 rounded-lg bg-secondary/50 ">
-              <div className="text-2xl font-bold text-red-500">
+              <div className="text-2xl font-bold text-[#FF0000]">
                 {score.counts.Critical}
               </div>
               <div className="text-xs text-muted-foreground uppercase tracking-wide">
