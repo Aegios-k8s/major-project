@@ -367,9 +367,27 @@ def run_agent(ws_url, token):
                 # Phase 3: streaming remediation execution
                 command_id = data.get("command_id", 0)
                 cmd = data.get("command", "").strip()
+                manifest = data.get("manifest", "")
+                
+                temp_file = None
+                if manifest and "apply -f" in cmd:
+                    import re
+                    m = re.search(r'-f\s+([^\s]+)', cmd)
+                    if m:
+                        filename = m.group(1)
+                        # We don't want to overwrite important system files if names collide, but in CWD it's fine
+                        with open(filename, 'w') as f:
+                            f.write(manifest)
+                        temp_file = filename
+
                 if cmd:
                     print(f"{C}▶ Remediation [{command_id}]:{N} {cmd}")
                     execute_streaming(ws, command_id, cmd)
+                
+                if temp_file:
+                    import os
+                    try: os.unlink(temp_file)
+                    except: pass
                 continue
             cmd = data.get("command","").strip()
             if not cmd: continue
@@ -951,7 +969,7 @@ func TakeActionHandler(c *gin.Context) {
 		}
 
 		// Fetch command from agent_output by finding_id
-		command, err := database.GetRemediationCommandByFinding(req.FindingID)
+		command, correctConfig, err := database.GetRemediationCommandByFinding(req.FindingID)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "No remediation command found for this finding"})
 			return
@@ -994,6 +1012,7 @@ func TakeActionHandler(c *gin.Context) {
 				"type":       "execute",
 				"command_id": execID,
 				"command":    command,
+				"manifest":   correctConfig,
 			})
 			if err := agentConn.WriteMessage(websocket.TextMessage, execMsg); err != nil {
 				log.Printf("Failed to send execute to agent: %v", err)
@@ -1003,7 +1022,7 @@ func TakeActionHandler(c *gin.Context) {
 			}
 		} else if hasDirectConfig {
 			// Direct Execution fallback using Uploaded kubeconfig
-			go func(cmdLine string, execID int, conf string) {
+			go func(cmdLine string, execID int, conf string, manifest string) {
 				tmpfile, err := os.CreateTemp("", "kubeconfig-*")
 				if err != nil {
 					database.UpdateRemediationStatus(execID, "failed")
@@ -1012,6 +1031,18 @@ func TakeActionHandler(c *gin.Context) {
 				defer os.Remove(tmpfile.Name())
 				tmpfile.WriteString(conf)
 				tmpfile.Close()
+
+				// If it's an apply -f command, create the manifest locally
+				var manifestFile string
+				if manifest != "" && strings.Contains(cmdLine, "apply -f") {
+					re := regexp.MustCompile(`-f\s+([a-zA-Z0-9_.-]+)`)
+					matches := re.FindStringSubmatch(cmdLine)
+					if len(matches) > 1 {
+						manifestFile = matches[1]
+						os.WriteFile(manifestFile, []byte(manifest), 0644)
+						defer os.Remove(manifestFile)
+					}
+				}
 
 				// Execute kubectl using bash wrapper
 				cmd := exec.Command("bash", "-c", cmdLine)
@@ -1027,7 +1058,7 @@ func TakeActionHandler(c *gin.Context) {
 				
 				database.AppendRemediationOutput(execID, string(out))
 				database.CompleteRemediation(execID, status, exitCode)
-			}(command, execID, configContent)
+			}(command, execID, configContent, correctConfig)
 		}
 
 		// Update status to running

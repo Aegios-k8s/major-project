@@ -76,23 +76,23 @@ func GetRemediationByID(id int) (*RemediationExecution, error) {
 	return r, nil
 }
 
-// GetRemediationCommandByFinding fetches the correct_config from agent_output for a given finding_id.
-func GetRemediationCommandByFinding(findingID string) (string, error) {
-	var correctConfig string
+// GetRemediationCommandByFinding fetches the command and correct_config from agent_output for a given finding_id.
+func GetRemediationCommandByFinding(findingID string) (string, string, error) {
+	var command, correctConfig string
 	err := DB.QueryRow(
-		`SELECT COALESCE(command, '')
+		`SELECT COALESCE(command, ''), COALESCE(correct_config, '')
 		 FROM agent_output
 		 WHERE finding_id = $1
 		 ORDER BY created_at DESC LIMIT 1`,
 		findingID,
-	).Scan(&correctConfig)
+	).Scan(&command, &correctConfig)
 	if err != nil {
-		return "", fmt.Errorf("no remediation command found for finding %s: %w", findingID, err)
+		return "", "", fmt.Errorf("no remediation command found for finding %s: %w", findingID, err)
 	}
-	if correctConfig == "" {
-		return "", fmt.Errorf("no remediation command found for finding %s", findingID)
+	if command == "" {
+		return "", "", fmt.Errorf("no remediation command found for finding %s", findingID)
 	}
-	return correctConfig, nil
+	return command, correctConfig, nil
 }
 
 // GetRecentRemediations returns the most recent executions for an org.
