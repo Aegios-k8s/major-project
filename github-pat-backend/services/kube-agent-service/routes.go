@@ -22,8 +22,14 @@ func RegisterRoutes(router *gin.RouterGroup) {
 	// Remediation actions
 	router.POST("/take-action", TakeActionHandler)
 	router.GET("/action-status", GetActionStatusHandler)
+	router.GET("/remediation-status", RemediationStatusHandler)
 
 	// Script serving
 	router.GET("/agent-script", AgentScriptHandler)
 	router.GET("/agent-script-py", AgentScriptPyHandler)
+
+	// Phase 2 endpoints (additive — existing routes above are untouched)
+	router.POST("/init", SessionInitHandler)
+	router.GET("/status", SessionStatusHandler)
+	router.GET("/agent-script-v2", AgentScriptV2Handler)
 }

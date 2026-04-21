@@ -1,34 +1,33 @@
 # Build stage
 FROM golang:1.24-alpine AS builder
 
-# Install build dependencies
-RUN apk add --no-cache git
+RUN sed -i 's/https/http/g' /etc/apk/repositories
+
+# Add CA certificates + git
+RUN apk add --no-cache git ca-certificates && update-ca-certificates
 
 WORKDIR /app
 
 # Copy go mod and sum files
 COPY go.mod go.sum ./
 
-# Download dependencies
-RUN go mod download
+# Copy vendored dependencies to keep Docker build independent of remote module proxies
+COPY vendor ./vendor
 
 # Copy the source code
 COPY . .
 
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -o main .
+RUN CGO_ENABLED=0 GOOS=linux GOFLAGS=-mod=vendor go build -o main .
 
 # Final stage
 FROM alpine:3.21
 
-# Install runtime dependencies: kubectl, helm, and ca-certificates
-RUN apk add --no-cache ca-certificates curl bash openssl \
-    && curl -fsSL -o /usr/local/bin/kubectl "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" \
-    && chmod +x /usr/local/bin/kubectl \
-    && curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 \
-    && chmod 700 get_helm.sh \
-    && ./get_helm.sh \
-    && rm get_helm.sh
+RUN sed -i 's/https/http/g' /etc/apk/repositories
+
+# Install runtime dependencies from Alpine repositories
+RUN apk add --no-cache ca-certificates curl bash openssl kubectl helm \
+    && update-ca-certificates
 
 WORKDIR /app
 
@@ -43,3 +42,4 @@ EXPOSE 8080
 
 # Command to run the executable
 CMD ["./main"]
+

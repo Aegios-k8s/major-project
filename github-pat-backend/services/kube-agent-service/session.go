@@ -3,6 +3,8 @@ package kubeagentservice
 import (
 	"sync"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 // AgentSession holds the communication channels between a frontend WS and a remote agent
@@ -13,6 +15,10 @@ type AgentSession struct {
 	AgentConnected bool
 	CreatedAt      time.Time
 	mu             sync.Mutex
+
+	// Phase 3: direct WebSocket connection references for remediation forwarding
+	agentConn    *websocket.Conn
+	frontendConn *websocket.Conn
 }
 
 var (
@@ -67,4 +73,34 @@ func (s *AgentSession) IsAgentConnected() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.AgentConnected
+}
+
+// ─── Phase 3: WebSocket connection getters/setters ───────────────────────────
+
+// SetAgentConn stores the agent's WebSocket connection in the session
+func (s *AgentSession) SetAgentConn(conn *websocket.Conn) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.agentConn = conn
+}
+
+// GetAgentConn returns the agent's WebSocket connection
+func (s *AgentSession) GetAgentConn() *websocket.Conn {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.agentConn
+}
+
+// SetFrontendConn stores the frontend terminal's WebSocket connection
+func (s *AgentSession) SetFrontendConn(conn *websocket.Conn) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.frontendConn = conn
+}
+
+// GetFrontendConn returns the frontend terminal's WebSocket connection
+func (s *AgentSession) GetFrontendConn() *websocket.Conn {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.frontendConn
 }

@@ -202,7 +202,6 @@ func createTables() error {
 		org_id VARCHAR(10) NOT NULL,
 		context_name VARCHAR(255) NOT NULL,
 		config_file TEXT NOT NULL,
-		token VARCHAR(64) UNIQUE NOT NULL,
 		created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
 		CONSTRAINT fk_config_cred_org
 			FOREIGN KEY (org_id)
@@ -223,12 +222,41 @@ func createTables() error {
 		CONSTRAINT fk_agent_output_org
 			FOREIGN KEY (org_id)
 			REFERENCES organization(org_id)
-			ON DELETE CASCADE,
-		CONSTRAINT fk_agent_output_session
-			FOREIGN KEY (session_token)
-			REFERENCES config_credentials(token)
 			ON DELETE CASCADE
 	);
+
+
+	-- =========================
+	-- PHASE 2 & 3 MIGRATIONS (additive only)
+	-- =========================
+	ALTER TABLE config_credentials ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'pending';
+	ALTER TABLE config_credentials ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+	
+	-- In-Memory Session Migration
+	ALTER TABLE agent_output DROP CONSTRAINT IF EXISTS fk_agent_output_session;
+	ALTER TABLE config_credentials DROP COLUMN IF EXISTS token;
+
+	-- =========================
+	-- PHASE 3: REMEDIATION EXECUTIONS
+	-- =========================
+	CREATE TABLE IF NOT EXISTS remediation_executions (
+		id SERIAL PRIMARY KEY,
+		finding_id VARCHAR(6) NOT NULL,
+		org_id VARCHAR(10) NOT NULL,
+		command TEXT NOT NULL,
+		status VARCHAR(50) DEFAULT 'pending',
+		output TEXT DEFAULT '',
+		exit_code INTEGER,
+		executed_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+		completed_at TIMESTAMPTZ,
+		CONSTRAINT fk_remediation_org
+			FOREIGN KEY (org_id)
+			REFERENCES organization(org_id)
+			ON DELETE CASCADE
+	);
+
+	-- Phase 3 migration: add finding_id to agent_output so remediation can look up by finding
+	ALTER TABLE agent_output ADD COLUMN IF NOT EXISTS finding_id VARCHAR(6);
 	`
 
 	_, err := DB.Exec(query)

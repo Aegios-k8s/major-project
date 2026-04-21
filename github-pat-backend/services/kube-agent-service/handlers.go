@@ -136,6 +136,112 @@ WS_URL=$(echo "$BACKEND_URL" | sed 's|^http://|ws://|;s|^https://|wss://|')
 python3 "$AGENT_SCRIPT" "${WS_URL}/session/agent-ws" "$TOKEN"
 `
 
+// agentScriptV2 is the bash script specifically for Phase 2 flow (Bearer auth + memory tokens)
+const agentScriptV2 = `#!/bin/bash
+# Aegios Kube Agent Connector (Phase 2 V2)
+set -e
+
+CONTEXT_NAME="${1}"
+TOKEN="${2}"
+BACKEND_URL="${3:-@@BACKEND_URL@@}"
+
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
+
+echo ""
+echo -e "${CYAN}${BOLD}"
+echo "  ╔═══════════════════════════════════════════════╗"
+echo "  ║         Aegios Kube Agent Connector           ║"
+echo "  ║       Secure Kubernetes Remediation           ║"
+echo "  ╚═══════════════════════════════════════════════╝"
+echo -e "${NC}"
+
+if [ -z "$CONTEXT_NAME" ] || [ -z "$TOKEN" ]; then
+    echo -e "${RED}✗ Error: Missing required arguments.${NC}"
+    echo "  Usage: bash <script> <context_name> <token>"
+    exit 1
+fi
+
+echo -e "${YELLOW}[1/6]${NC} Checking prerequisites..."
+if ! command -v kubectl &> /dev/null; then
+    echo -e "${RED}  ✗ kubectl is not installed.${NC}"
+    exit 1
+fi
+echo -e "${GREEN}  ✓ kubectl found${NC}"
+
+if ! command -v python3 &> /dev/null; then
+    echo -e "${RED}  ✗ python3 is not installed (required for WebSocket agent).${NC}"
+    exit 1
+fi
+echo -e "${GREEN}  ✓ python3 found${NC}"
+
+echo -e "${YELLOW}[2/6]${NC} Validating context '${BOLD}${CONTEXT_NAME}${NC}'..."
+if ! kubectl config get-contexts "$CONTEXT_NAME" &> /dev/null 2>&1; then
+    echo -e "${RED}  ✗ Context '${CONTEXT_NAME}' not found.${NC}"
+    echo "  Available contexts:"
+    kubectl config get-contexts -o name 2>/dev/null | while read -r ctx; do echo "    - $ctx"; done
+    exit 1
+fi
+echo -e "${GREEN}  ✓ Context '${CONTEXT_NAME}' exists${NC}"
+
+if kubectl --context="$CONTEXT_NAME" cluster-info &> /dev/null 2>&1; then
+    echo -e "${GREEN}  ✓ Cluster is reachable${NC}"
+else
+    echo -e "${YELLOW}  ⚠ Cluster may not be reachable (continuing anyway)${NC}"
+fi
+
+echo -e "${YELLOW}[3/6]${NC} Extracting kubeconfig..."
+TEMP_CONFIG=$(mktemp /tmp/aegios-kubeconfig.XXXXXX)
+trap "rm -f $TEMP_CONFIG $AGENT_SCRIPT" EXIT
+kubectl config view --minify --context="$CONTEXT_NAME" --flatten > "$TEMP_CONFIG" 2>/dev/null
+if [ ! -s "$TEMP_CONFIG" ]; then
+    echo -e "${RED}  ✗ Failed to extract kubeconfig.${NC}"
+    exit 1
+fi
+echo -e "${GREEN}  ✓ Kubeconfig extracted${NC}"
+export KUBECONFIG="$TEMP_CONFIG"
+
+echo -e "${YELLOW}[4/6]${NC} Uploading config to Aegios..."
+UPLOAD_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${BACKEND_URL}/api/upload-config" -H "Authorization: Bearer ${TOKEN}" -F "config=@${TEMP_CONFIG}" --connect-timeout 10 --max-time 30)
+HTTP_CODE=$(echo "$UPLOAD_RESPONSE" | tail -1)
+RESPONSE_BODY=$(echo "$UPLOAD_RESPONSE" | sed '$d')
+if [ "$HTTP_CODE" -ne 200 ]; then
+    echo -e "${RED}  ✗ Upload failed (HTTP ${HTTP_CODE}).${NC}"
+    exit 1
+fi
+SESSION_TOKEN=$(echo "$RESPONSE_BODY" | python3 -c 'import sys, json; print(json.load(sys.stdin).get("session_token", ""))')
+if [ -z "$SESSION_TOKEN" ]; then
+    echo -e "${RED}  ✗ Server did not return a session token.${NC}"
+    exit 1
+fi
+echo -e "${GREEN}  ✓ Config uploaded successfully${NC}"
+
+echo -e "${YELLOW}[5/6]${NC} Downloading WebSocket agent..."
+AGENT_SCRIPT=$(mktemp /tmp/aegios-agent.XXXXXX)
+AGENT_URL="${BACKEND_URL}/session/agent-script-py"
+if ! curl -fsSL "$AGENT_URL" -o "$AGENT_SCRIPT" --connect-timeout 10 --max-time 30; then
+    echo -e "${YELLOW}  ⚠ Backend agent download failed, trying GitHub...${NC}"
+    AGENT_URL="https://raw.githubusercontent.com/Aegios-k8s/kube-connect-script/main/agent.py"
+    if ! curl -fsSL "$AGENT_URL" -o "$AGENT_SCRIPT" --connect-timeout 10 --max-time 30; then
+        echo -e "${RED}  ✗ Failed to download agent.${NC}"
+        exit 1
+    fi
+fi
+echo -e "${GREEN}  ✓ Agent downloaded${NC}"
+
+echo -e "${YELLOW}[6/6]${NC} Starting WebSocket agent..."
+echo ""
+echo -e "${GREEN}${BOLD}  ✓ Agent Starting!${NC}"
+echo -e "  ${CYAN}Cluster:${NC} ${BOLD}${CONTEXT_NAME}${NC}"
+echo -e "  ${CYAN}Backend:${NC} ${BOLD}${BACKEND_URL}${NC}"
+echo -e "  ${YELLOW}   Commands from Aegios dashboard will execute here.${NC}"
+echo -e "  ${YELLOW}   Press Ctrl+C to stop.${NC}"
+echo ""
+
+WS_URL=$(echo "$BACKEND_URL" | sed 's|^http://|ws://|;s|^https://|wss://|')
+# Terminals still use the classic WS connection flow initially
+python3 "$AGENT_SCRIPT" "${WS_URL}/session/agent-ws" "$SESSION_TOKEN"
+`
+
 // agentPythonScript is embedded so the backend can serve it even without GitHub access
 //go:generate echo "agent.py is embedded as a string"
 const agentPythonScript = `#!/usr/bin/env python3
@@ -190,6 +296,7 @@ class WebSocketClient:
             resp += c
         if b"101" not in resp:
             raise ConnectionError(f"Handshake failed: {resp.decode()}")
+        self.sock.settimeout(None)  # Switch to blocking mode after handshake
 
     def send(self, data):
         payload = data.encode("utf-8") if isinstance(data, str) else data
@@ -247,6 +354,27 @@ def execute(cmd):
     except subprocess.TimeoutExpired: return "Error: timed out (120s)", 1
     except Exception as e: return f"Error: {e}", 1
 
+def execute_streaming(ws, command_id, cmd):
+    """Execute a command and stream output line-by-line back via WebSocket."""
+    try:
+        import subprocess as sp
+        process = sp.Popen(cmd, shell=True, stdout=sp.PIPE, stderr=sp.STDOUT, text=True)
+        for line in process.stdout:
+            stripped = line.rstrip()
+            if stripped:
+                print(stripped)
+                ws.send(json.dumps({"type":"output","command_id":command_id,"output":stripped}))
+        process.wait()
+        ec = process.returncode
+        ws.send(json.dumps({"type":"done","command_id":command_id,"output":"","exit_code":ec}))
+        if ec == 0:
+            print(f"{G}✓ Remediation completed (exit {ec}){N}\n")
+        else:
+            print(f"{R}✗ Remediation failed (exit {ec}){N}\n")
+    except Exception as e:
+        print(f"{R}✗ Remediation error: {e}{N}\n")
+        ws.send(json.dumps({"type":"error","command_id":command_id,"output":str(e),"exit_code":1}))
+
 def run_agent(ws_url, token):
     url = f"{ws_url}?token={token}"
     print(f"{C}  Connecting to Aegios backend...{N}")
@@ -265,6 +393,14 @@ def run_agent(ws_url, token):
             except: data = {"type":"command","command":msg}
             if data.get("type") == "ping":
                 ws.send(json.dumps({"type":"pong"})); continue
+            if data.get("type") == "execute":
+                # Phase 3: streaming remediation execution
+                command_id = data.get("command_id", 0)
+                cmd = data.get("command", "").strip()
+                if cmd:
+                    print(f"{C}▶ Remediation [{command_id}]:{N} {cmd}")
+                    execute_streaming(ws, command_id, cmd)
+                continue
             cmd = data.get("command","").strip()
             if not cmd: continue
             print(f"{C}▶ Executing:{N} {cmd}")
@@ -320,11 +456,16 @@ func GenerateCommandHandler(c *gin.Context) {
 		}
 	}
 
-	token, err := database.CreateConfigCredential(req.OrgID, req.ContextName)
-	if err != nil {
+	if err := database.CreateConfigCredential(req.OrgID, req.ContextName); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create config session"})
 		return
 	}
+
+	token, _ := database.GenerateTerminalToken()
+	StoreSessionToken(token, TokenSessionInfo{
+		OrgID:       req.OrgID,
+		ContextName: req.ContextName,
+	})
 
 	scheme := "http"
 	if c.Request.TLS != nil {
@@ -366,7 +507,13 @@ func UploadConfigHandler(c *gin.Context) {
 	re := regexp.MustCompile(`(https?://)(127\.0\.0\.1|localhost)(:\d+)`)
 	configContent = re.ReplaceAllString(configContent, "${1}host.docker.internal${3}")
 
-	if err := database.UpdateConfigCredential(token, configContent); err != nil {
+	info, err := LookupSessionToken(token)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token session"})
+		return
+	}
+
+	if err := database.UpdateConfigCredential(info.OrgID, info.ContextName, configContent); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save config"})
 		return
 	}
@@ -375,7 +522,7 @@ func UploadConfigHandler(c *gin.Context) {
 	os.WriteFile(configPath, []byte(configContent), 0600)
 
 	go func(path string) {
-		time.Sleep(10 * time.Minute)
+		time.Sleep(30 * time.Minute)
 		sessionMu.Lock()
 		defer sessionMu.Unlock()
 		os.Remove(path)
@@ -402,11 +549,35 @@ func AgentWsHandler(c *gin.Context) {
 
 	session := GetOrCreateSession(token)
 	session.SetAgentConnected(true)
-	defer session.SetAgentConnected(false)
+	session.SetAgentConn(conn)
+	defer func() {
+		session.SetAgentConnected(false)
+		session.SetAgentConn(nil)
+		if fc := session.GetFrontendConn(); fc != nil {
+			fc.WriteMessage(websocket.BinaryMessage, []byte("\r\n⚠ Agent disconnected.\r\naegios:~$ "))
+		}
+	}()
 
 	log.Printf("Agent connected for token: %s", token[:8])
 
 	done := make(chan struct{})
+
+	// Goroutine: Ping keepalive every 20 seconds to prevent agent timeout
+	go func() {
+		ticker := time.NewTicker(20 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				pingMsg, _ := json.Marshal(map[string]string{"type": "ping"})
+				if err := conn.WriteMessage(websocket.TextMessage, pingMsg); err != nil {
+					return
+				}
+			case <-done:
+				return
+			}
+		}
+	}()
 
 	// Goroutine: Read commands from session channel → send to agent
 	go func() {
@@ -448,6 +619,7 @@ func AgentWsHandler(c *gin.Context) {
 		switch msgType {
 		case "agent_ready":
 			log.Printf("Agent ready for token: %s", token[:8])
+
 		case "result":
 			output, _ := msg["output"].(string)
 			select {
@@ -455,6 +627,73 @@ func AgentWsHandler(c *gin.Context) {
 			default:
 				log.Println("Result channel full, dropping result")
 			}
+
+		case "output":
+			// Phase 3: streaming remediation output from agent
+			outputLine, _ := msg["output"].(string)
+			commandIDFloat, _ := msg["command_id"].(float64)
+			commandID := int(commandIDFloat)
+
+			// Append output to DB
+			if commandID > 0 {
+				go database.AppendRemediationOutput(commandID, outputLine)
+			}
+
+			// Forward to frontend terminal
+			if fc := session.GetFrontendConn(); fc != nil {
+				termLine := strings.ReplaceAll(outputLine, "\n", "\r\n")
+				fc.WriteMessage(websocket.BinaryMessage, []byte(termLine+"\r\n"))
+			}
+
+			// Also push to Results channel for non-terminal consumers
+			select {
+			case session.Results <- outputLine:
+			default:
+			}
+
+		case "done":
+			// Phase 3: remediation execution completed
+			commandIDFloat, _ := msg["command_id"].(float64)
+			commandID := int(commandIDFloat)
+			exitCodeFloat, _ := msg["exit_code"].(float64)
+			exitCode := int(exitCodeFloat)
+
+			status := "success"
+			statusEmoji := "✅"
+			if exitCode != 0 {
+				status = "failed"
+				statusEmoji = "❌"
+			}
+
+			if commandID > 0 {
+				go database.CompleteRemediation(commandID, status, exitCode)
+			}
+
+			// Forward completion to frontend terminal
+			if fc := session.GetFrontendConn(); fc != nil {
+				doneLine := fmt.Sprintf("\r\n%s Remediation %s (exit %d)\r\naegios:~$ ", statusEmoji, status, exitCode)
+				fc.WriteMessage(websocket.BinaryMessage, []byte(doneLine))
+			}
+
+			log.Printf("Remediation %s for command_id=%d (exit %d)", status, commandID, exitCode)
+
+		case "error":
+			// Phase 3: remediation execution error
+			commandIDFloat, _ := msg["command_id"].(float64)
+			commandID := int(commandIDFloat)
+			errorMsg, _ := msg["output"].(string)
+
+			if commandID > 0 {
+				go func() {
+					database.AppendRemediationOutput(commandID, "ERROR: "+errorMsg)
+					database.CompleteRemediation(commandID, "failed", 1)
+				}()
+			}
+
+			if fc := session.GetFrontendConn(); fc != nil {
+				fc.WriteMessage(websocket.BinaryMessage, []byte("\r\n❌ Remediation error: "+errorMsg+"\r\naegios:~$ "))
+			}
+
 		case "pong":
 			// ignore
 		}
@@ -470,7 +709,11 @@ func checkClusterReachable(token string) bool {
 	configPath := filepath.Join(ConfigDir, token+".yaml")
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		// Write config file if not on disk yet
-		configData, err := database.GetConfigCredential(token)
+		info, err := LookupSessionToken(token)
+		if err != nil {
+			return false
+		}
+		configData, err := database.GetConfigCredential(info.OrgID, info.ContextName)
 		if err != nil || configData == "" {
 			return false
 		}
@@ -513,9 +756,15 @@ func WsHandler(c *gin.Context) {
 		return
 	}
 
-	configData, err := database.GetConfigCredential(token)
-	if err != nil || configData == "" {
+	info, err := LookupSessionToken(token)
+	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
+		return
+	}
+
+	configData, err := database.GetConfigCredential(info.OrgID, info.ContextName)
+	if err != nil || configData == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Config not found for session"})
 		return
 	}
 
@@ -578,7 +827,7 @@ func wsHandleDirect(conn *websocket.Conn, token, configPath string) {
 
 	// 10 min timeout
 	go func() {
-		time.Sleep(10 * time.Minute)
+		time.Sleep(30 * time.Minute)
 		conn.WriteMessage(websocket.TextMessage, []byte("\r\n[Aegios] Session timed out.\r\n"))
 		ptmx.Close()
 		conn.Close()
@@ -614,6 +863,8 @@ func wsHandleDirect(conn *websocket.Conn, token, configPath string) {
 // wsHandleAgent handles the terminal via remote agent bridge
 func wsHandleAgent(conn *websocket.Conn, token string) {
 	session := GetOrCreateSession(token)
+	session.SetFrontendConn(conn)
+	defer session.SetFrontendConn(nil)
 
 	conn.WriteMessage(websocket.BinaryMessage, []byte("\r\n🚀 Agent mode — commands will execute on your machine.\r\n"))
 
@@ -640,7 +891,7 @@ func wsHandleAgent(conn *websocket.Conn, token string) {
 	done := make(chan struct{})
 
 	go func() {
-		time.Sleep(10 * time.Minute)
+		time.Sleep(30 * time.Minute)
 		conn.WriteMessage(websocket.BinaryMessage, []byte("\r\n[Aegios] Session timed out.\r\n"))
 		conn.Close()
 		close(done)
@@ -677,10 +928,14 @@ func wsHandleAgent(conn *websocket.Conn, token string) {
 			case ch == '\r' || ch == '\n':
 				if strings.TrimSpace(cmdBuffer) != "" {
 					conn.WriteMessage(websocket.BinaryMessage, []byte("\r\n"))
-					select {
-					case session.Commands <- cmdBuffer:
-					default:
+					if !session.IsAgentConnected() {
 						conn.WriteMessage(websocket.BinaryMessage, []byte("⚠ Agent not connected.\r\naegios:~$ "))
+					} else {
+						select {
+						case session.Commands <- cmdBuffer:
+						default:
+							conn.WriteMessage(websocket.BinaryMessage, []byte("⚠ Agent buffer full.\r\naegios:~$ "))
+						}
 					}
 				} else {
 					conn.WriteMessage(websocket.BinaryMessage, []byte("\r\naegios:~$ "))
@@ -707,6 +962,7 @@ func wsHandleAgent(conn *websocket.Conn, token string) {
 func TakeActionHandler(c *gin.Context) {
 	var req struct {
 		Token         string `json:"token"`
+		FindingID     string `json:"finding_id"`
 		Command       string `json:"command"`
 		CorrectConfig string `json:"correct_config"`
 	}
@@ -716,18 +972,125 @@ func TakeActionHandler(c *gin.Context) {
 		return
 	}
 
-	if req.Token == "" || req.Command == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "token and command are required"})
+	// ── Phase 3: finding_id-based remediation (non-blocking) ──
+	if req.FindingID != "" && req.Token != "" {
+		info, err := LookupSessionToken(req.Token)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
+			return
+		}
+
+		// Fetch command from agent_output by finding_id
+		command, err := database.GetRemediationCommandByFinding(req.FindingID)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "No remediation command found for this finding"})
+			return
+		}
+
+		// Check agent connection OR direct config upload mode
+		session := GetSession(req.Token)
+		
+		var configContent string
+		hasDirectConfig := false
+		if info.ContextName != "" {
+			conf, errConf := database.GetConfigCredential(info.OrgID, info.ContextName)
+			if errConf == nil && conf != "" && len(conf) > 10 {
+				hasDirectConfig = true
+				configContent = conf
+			}
+		}
+
+		if (session == nil || !session.IsAgentConnected()) && !hasDirectConfig {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "No agent connected. Please run the agent script or upload a config first."})
+			return
+		}
+
+		// Create remediation execution record
+		execID, err := database.CreateRemediationExecution(req.FindingID, info.OrgID, command)
+		if err != nil {
+			log.Printf("Failed to create remediation execution: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create execution record"})
+			return
+		}
+
+		// Send execute command to agent via WebSocket
+		var agentConn *websocket.Conn
+		if session != nil {
+			agentConn = session.GetAgentConn()
+		}
+
+		if agentConn != nil {
+			execMsg, _ := json.Marshal(map[string]interface{}{
+				"type":       "execute",
+				"command_id": execID,
+				"command":    command,
+			})
+			if err := agentConn.WriteMessage(websocket.TextMessage, execMsg); err != nil {
+				log.Printf("Failed to send execute to agent: %v", err)
+				database.UpdateRemediationStatus(execID, "failed")
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send command to agent"})
+				return
+			}
+		} else if hasDirectConfig {
+			// Direct Execution fallback using Uploaded kubeconfig
+			go func(cmdLine string, execID int, conf string) {
+				tmpfile, err := os.CreateTemp("", "kubeconfig-*")
+				if err != nil {
+					database.UpdateRemediationStatus(execID, "failed")
+					return
+				}
+				defer os.Remove(tmpfile.Name())
+				tmpfile.WriteString(conf)
+				tmpfile.Close()
+
+				// Execute kubectl using bash wrapper
+				cmd := exec.Command("bash", "-c", cmdLine)
+				cmd.Env = append(os.Environ(), "KUBECONFIG="+tmpfile.Name())
+				out, err := cmd.CombinedOutput()
+				
+				exitCode := 0
+				status := "success"
+				if err != nil {
+					exitCode = 1
+					status = "failed"
+				}
+				
+				database.AppendRemediationOutput(execID, string(out))
+				database.CompleteRemediation(execID, status, exitCode)
+			}(command, execID, configContent)
+		}
+
+		// Update status to running
+		database.UpdateRemediationStatus(execID, "running")
+
+		// Send separator to frontend terminal
+		if fc := session.GetFrontendConn(); fc != nil {
+			separator := fmt.Sprintf("\r\n─────────────────────────────────────\r\n🚀 Executing remediation for Finding #%s\r\n─────────────────────────────────────\r\n", req.FindingID)
+			fc.WriteMessage(websocket.BinaryMessage, []byte(separator))
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"success":      true,
+			"execution_id": execID,
+			"status":       "running",
+			"message":      "Command sent to agent. Watch terminal for output.",
+		})
 		return
 	}
 
-	orgID, err := database.GetOrgIDByToken(req.Token)
+	// ── Legacy flow (backward compatible): token + command ──
+	if req.Token == "" || req.Command == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "token and command (or finding_id) are required"})
+		return
+	}
+
+	info, err := LookupSessionToken(req.Token)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Invalid token"})
 		return
 	}
 
-	err = database.SaveAgentOutput(orgID, req.Token, req.Command, req.CorrectConfig)
+	err = database.SaveAgentOutput(info.OrgID, req.Token, req.Command, req.CorrectConfig, "")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to store command"})
 		return
@@ -769,6 +1132,40 @@ func GetActionStatusHandler(c *gin.Context) {
 	})
 }
 
+// ─── Phase 3: RemediationStatusHandler ───
+
+func RemediationStatusHandler(c *gin.Context) {
+	execIDStr := c.Query("execution_id")
+	if execIDStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "execution_id is required"})
+		return
+	}
+
+	var execID int
+	fmt.Sscanf(execIDStr, "%d", &execID)
+	if execID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid execution_id"})
+		return
+	}
+
+	exec, err := database.GetRemediationByID(execID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Execution not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":      true,
+		"execution_id": exec.ID,
+		"finding_id":   exec.FindingID,
+		"status":       exec.Status,
+		"output":       exec.Output,
+		"exit_code":    exec.ExitCode,
+		"executed_at":  exec.ExecutedAt,
+		"completed_at": exec.CompletedAt,
+	})
+}
+
 func AgentScriptHandler(c *gin.Context) {
 	scheme := "http"
 	if c.Request.TLS != nil {
@@ -776,17 +1173,33 @@ func AgentScriptHandler(c *gin.Context) {
 	}
 	backendURL := fmt.Sprintf("%s://%s", scheme, c.Request.Host)
 	script := strings.Replace(agentScript, "@@BACKEND_URL@@", backendURL, 1)
+	script = strings.ReplaceAll(script, "\r", "")
 
 	c.Header("Content-Type", "text/plain; charset=utf-8")
 	c.Header("Content-Disposition", "inline; filename=\"kube-connect-script.sh\"")
 	c.String(http.StatusOK, script)
 }
 
-// AgentScriptPyHandler serves the Python agent directly from the backend
 func AgentScriptPyHandler(c *gin.Context) {
 	c.Header("Content-Type", "text/plain; charset=utf-8")
 	c.Header("Content-Disposition", "inline; filename=\"agent.py\"")
-	c.String(http.StatusOK, agentPythonScript)
+	script := strings.ReplaceAll(agentPythonScript, "\r", "")
+	c.String(http.StatusOK, script)
+}
+
+// AgentScriptV2Handler serves the bash script tailored for the Phase 2 flow
+func AgentScriptV2Handler(c *gin.Context) {
+	scheme := "http"
+	if c.Request.TLS != nil {
+		scheme = "https"
+	}
+	backendURL := fmt.Sprintf("%s://%s", scheme, c.Request.Host)
+	script := strings.Replace(agentScriptV2, "@@BACKEND_URL@@", backendURL, 1)
+	script = strings.ReplaceAll(script, "\r", "")
+
+	c.Header("Content-Type", "text/plain; charset=utf-8")
+	c.Header("Content-Disposition", "inline; filename=\"kube-connect-script-v2.sh\"")
+	c.String(http.StatusOK, script)
 }
 
 func ConfigStatusHandler(c *gin.Context) {
@@ -796,7 +1209,13 @@ func ConfigStatusHandler(c *gin.Context) {
 		return
 	}
 
-	configData, err := database.GetConfigCredential(token)
+	info, err := LookupSessionToken(token)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"success": true, "has_config": false})
+		return
+	}
+
+	configData, err := database.GetConfigCredential(info.OrgID, info.ContextName)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"success": true, "has_config": false})
 		return
@@ -862,3 +1281,167 @@ func AgentResultHandler(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": true, "warning": "No frontend connected"})
 	}
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Phase 2: New Handlers — Session Init, Upload Config (Bearer), Status Polling
+// All existing handlers above are UNTOUCHED.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// SessionInitHandler handles POST /session/init
+// Generates an in-memory token (never stored in DB) and returns a curl command.
+func SessionInitHandler(c *gin.Context) {
+	var req struct {
+		ContextName string `json:"context_name"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	if req.ContextName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "context_name is required"})
+		return
+	}
+
+	// Resolve org_id — same pattern as GenerateCommandHandler (backward compatible)
+	var orgID string
+	err := database.DB.QueryRow(`SELECT org_id FROM organization LIMIT 1`).Scan(&orgID)
+	if err != nil || orgID == "" {
+		fallbackOrgID := "1"
+		database.CreateOrganization(fallbackOrgID, "DUMMY", "Fallback Org")
+		orgID = fallbackOrgID
+	}
+
+	// Save pending record in DB (NO token in DB)
+	if err := database.CreatePendingConfig(orgID, req.ContextName); err != nil {
+		log.Printf("Phase2: Failed to create pending config: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to initialize session"})
+		return
+	}
+
+	// Generate in-memory token
+	token, err := GeneratePhase2Token()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+		return
+	}
+
+	// Store token in memory only (15-min TTL, one-time use)
+	StorePhase2Token(token, TokenSessionInfo{
+		OrgID:       orgID,
+		ContextName: req.ContextName,
+	})
+
+	// Build the curl command
+	scheme := "http"
+	if c.Request.TLS != nil {
+		scheme = "https"
+	}
+	backendURL := fmt.Sprintf("%s://%s", scheme, c.Request.Host)
+
+	curlCommand := fmt.Sprintf(
+		"curl -fsSL %s/session/agent-script-v2 | bash -s %s %s",
+		backendURL, req.ContextName, token,
+	)
+
+	c.JSON(http.StatusOK, gin.H{
+		"curl_command": curlCommand,
+		"org_id":       orgID,
+		"token":        token,
+	})
+}
+
+// UploadConfigPhase2Handler handles POST /api/upload-config
+// Validates a Bearer token from memory, stores the kubeconfig in DB, and invalidates the token.
+func UploadConfigPhase2Handler(c *gin.Context) {
+	// Extract Bearer token from Authorization header
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" || len(authHeader) < 8 || authHeader[:7] != "Bearer " {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Missing or invalid Authorization header"})
+		return
+	}
+	token := authHeader[7:]
+
+	// Look up token in memory
+	info, err := LookupPhase2Token(token)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
+		return
+	}
+
+	// Read the uploaded config file
+	file, err := c.FormFile("config")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Config file is required"})
+		return
+	}
+
+	f, err := file.Open()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read config file"})
+		return
+	}
+	defer f.Close()
+
+	buf := make([]byte, file.Size)
+	f.Read(buf)
+	configContent := string(buf)
+
+	// Rewrite localhost/127.0.0.1 → host.docker.internal (same as existing UploadConfigHandler)
+	re := regexp.MustCompile(`(https?://)(127\.0\.0\.1|localhost)(:\d+)`)
+	configContent = re.ReplaceAllString(configContent, "${1}host.docker.internal${3}")
+
+	// Persist in DB → status = 'active'
+	if err := database.ActivateConfig(info.OrgID, info.ContextName, configContent); err != nil {
+		log.Printf("Phase2: Failed to activate config: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save config"})
+		return
+	}
+
+	// Create long-lived session token
+	sessionToken, _ := database.GenerateTerminalToken()
+	StoreSessionToken(sessionToken, TokenSessionInfo{
+		OrgID:       info.OrgID,
+		ContextName: info.ContextName,
+	})
+
+	// Delete token from memory (one-time use — now invalidated)
+	DeletePhase2Token(token)
+
+	log.Printf("Phase2: Config uploaded for org=%s context=%s", info.OrgID, info.ContextName)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":       "Config uploaded successfully",
+		"session_token": sessionToken,
+	})
+}
+
+// SessionStatusHandler handles GET /session/status
+// Polls the DB for the current status of a config_credentials record.
+func SessionStatusHandler(c *gin.Context) {
+	contextName := c.Query("context_name")
+	orgID := c.Query("org_id")
+
+	if contextName == "" || orgID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "context_name and org_id are required"})
+		return
+	}
+
+	status, err := database.GetConfigStatusByContext(orgID, contextName)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"status": "pending"})
+		return
+	}
+
+	token := ""
+	if status == "active" {
+		token, _ = GetSessionTokenByOrg(orgID)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":        status,
+		"session_token": token,
+	})
+}
+

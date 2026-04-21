@@ -85,6 +85,9 @@ func main() {
 	sessionGroup := router.Group("/session")
 	kubeagentservice.RegisterRoutes(sessionGroup)
 
+	// Phase 2: global route for config upload via Bearer token (outside /session group)
+	router.POST("/api/upload-config", kubeagentservice.UploadConfigPhase2Handler)
+
 	// Start server
 	appLogger.Info("🚀 Aegios Backend starting...")
 	appLogger.Info("📍 Server running on http://localhost:" + serverPort)
