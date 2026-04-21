@@ -1291,7 +1291,8 @@ func AgentResultHandler(c *gin.Context) {
 // Generates an in-memory token (never stored in DB) and returns a curl command.
 func SessionInitHandler(c *gin.Context) {
 	var req struct {
-		ContextName string `json:"context_name"`
+		ContextName  string `json:"context_name"`
+		SessionToken string `json:"session_token"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -1304,13 +1305,32 @@ func SessionInitHandler(c *gin.Context) {
 		return
 	}
 
-	// Resolve org_id — same pattern as GenerateCommandHandler (backward compatible)
+	// Extract session token from JSON body or Authorization header
+	sessionToken := req.SessionToken
+	if sessionToken == "" {
+		authHeader := c.GetHeader("Authorization")
+		if authHeader != "" && len(authHeader) > 7 && authHeader[:7] == "Bearer " {
+			sessionToken = authHeader[7:]
+		}
+	}
+
 	var orgID string
-	err := database.DB.QueryRow(`SELECT org_id FROM organization LIMIT 1`).Scan(&orgID)
-	if err != nil || orgID == "" {
-		fallbackOrgID := "1"
-		database.CreateOrganization(fallbackOrgID, "DUMMY", "Fallback Org")
-		orgID = fallbackOrgID
+
+	if sessionToken != "" {
+		githubUsername, err := database.ValidateSession(sessionToken)
+		if err == nil {
+			orgID, _ = database.GetUserOrgID(githubUsername)
+		}
+	}
+
+	// Fallback mechanism
+	if orgID == "" {
+		err := database.DB.QueryRow(`SELECT org_id FROM organization LIMIT 1`).Scan(&orgID)
+		if err != nil || orgID == "" {
+			fallbackOrgID := "1"
+			database.CreateOrganization(fallbackOrgID, "DUMMY", "Fallback Org")
+			orgID = fallbackOrgID
+		}
 	}
 
 	// Save pending record in DB (NO token in DB)
@@ -1391,6 +1411,13 @@ func UploadConfigPhase2Handler(c *gin.Context) {
 	// Rewrite localhost/127.0.0.1 → host.docker.internal (same as existing UploadConfigHandler)
 	re := regexp.MustCompile(`(https?://)(127\.0\.0\.1|localhost)(:\d+)`)
 	configContent = re.ReplaceAllString(configContent, "${1}host.docker.internal${3}")
+
+	// Skip TLS verification when using host.docker.internal
+	if strings.Contains(configContent, "host.docker.internal") {
+		// Replace certificate-authority-data with insecure-skip-tls-verify
+		reCA := regexp.MustCompile(`(?m)^\s*certificate-authority-data:.*$`)
+		configContent = reCA.ReplaceAllString(configContent, "    insecure-skip-tls-verify: true")
+	}
 
 	// Persist in DB → status = 'active'
 	if err := database.ActivateConfig(info.OrgID, info.ContextName, configContent); err != nil {
