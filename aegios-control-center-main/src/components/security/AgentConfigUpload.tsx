@@ -237,7 +237,7 @@ export const AgentConfigUpload: React.FC<AgentConfigUploadProps> = ({ onSuccess 
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              disabled={isLoading || !contextName.trim() || status === 'waiting' || status === 'active'}
+              disabled={isLoading || !contextName.trim() || status === 'active'}
               className="flex-1 py-2 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-black font-semibold rounded-lg flex justify-center items-center gap-2 transition-colors"
             >
               {isLoading ? (
@@ -280,10 +280,10 @@ export const AgentConfigUpload: React.FC<AgentConfigUploadProps> = ({ onSuccess 
 
       {/* ── Step 2: Waiting State — polling for agent connection ────────── */}
       {status === 'waiting' && (
-        <div className="h-[80px] bg-[#29A35C]/10 border-2 border-dashed border-[#29A35C]/50 rounded-xl flex items-center justify-center gap-3 animate-pulse">
-          <Loader2 className="w-5 h-5 text-green-400 animate-spin" />
+        <div className="h-[80px] bg-[#29A35C]/10 border-2 border-dashed border-[#29A35C]/50 rounded-xl flex items-center justify-center gap-3">
+          <Upload className="w-5 h-5 text-green-400 animate-bounce" />
           <span className="font-semibold text-green-muted text-sm">
-            Waiting for agent to connect... Copy and run the command above in your terminal.
+            Run the command above, then click the Upload button to provide the saved config file.
           </span>
         </div>
       )}
