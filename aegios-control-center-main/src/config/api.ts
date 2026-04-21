@@ -48,6 +48,11 @@ export const API_CONFIG = {
       ACTION_STATUS: `${API_BASE_URL}/session/action-status`,
       CONFIG_STATUS: `${API_BASE_URL}/session/config-status`,
       CLUSTER_MODE: `${API_BASE_URL}/session/cluster-mode`,
+      // Phase 2
+      INIT: `${API_BASE_URL}/session/init`,
+      STATUS: `${API_BASE_URL}/session/status`,
+      UPLOAD_CONFIG_V2: `${API_BASE_URL}/api/upload-config`,
+      REMEDIATION_STATUS: `${API_BASE_URL}/session/remediation-status`,
     },
   },
 };

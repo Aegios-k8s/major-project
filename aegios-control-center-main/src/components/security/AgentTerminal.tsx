@@ -89,6 +89,25 @@ export const AgentTerminal = forwardRef<AgentTerminalRef, AgentTerminalProps>(({
       term.writeln('\r\nWebSocket connection error.');
     };
 
+    // Handle copy/paste natively
+    term.attachCustomKeyEventHandler((e) => {
+      if (e.type === 'keydown') {
+        if (e.ctrlKey && e.code === 'KeyC' && term.hasSelection()) {
+          navigator.clipboard.writeText(term.getSelection());
+          return false;
+        }
+        if (e.ctrlKey && e.code === 'KeyV') {
+          navigator.clipboard.readText().then(text => {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(text);
+            }
+          });
+          return false;
+        }
+      }
+      return true;
+    });
+
     // Handle user input
     term.onData((data) => {
       if (ws.readyState === WebSocket.OPEN) {

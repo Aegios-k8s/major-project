@@ -27,7 +27,7 @@ const DashboardHeader = () => {
   const handleSignOut = () => {
     logout();
     toast.success("Signed out successfully");
-    navigate('/authentication/login');
+    window.location.href = '/authentication/login';
   };
 
   return (

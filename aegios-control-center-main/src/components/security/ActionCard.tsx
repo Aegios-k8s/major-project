@@ -1,13 +1,14 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { CheckCircle2, Loader2, GitPullRequest, GitBranch, ExternalLink } from "lucide-react";
+import { CheckCircle2, Loader2, GitPullRequest, GitBranch, ExternalLink, AlertTriangle, Zap, XCircle, WifiOff } from "lucide-react";
 import { K8sPostureFinding } from "@/types/security";
 import { API_CONFIG } from "@/config/api";
 import { getSessionToken } from "@/lib/data-transformers";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
@@ -19,8 +20,10 @@ import {
 
 interface ActionCardProps {
   finding: K8sPostureFinding;
-  onApply: (finding: K8sPostureFinding, command: string) => Promise<{ success: boolean; message: string }>;
+  onApply: (finding: K8sPostureFinding, command: string) => Promise<{ success: boolean; message: string; output?: string }>;
 }
+
+type RemediationStatus = 'idle' | 'sending' | 'running' | 'success' | 'failed' | 'no-agent';
 
 const severityToStatus = (severity: string): "Low" | "High" | "Critical" => {
   const normalized = (severity || "").toLowerCase();
@@ -37,7 +40,15 @@ const statusClassMap: Record<string, string> = {
 
 const ActionCard = ({ finding, onApply }: ActionCardProps) => {
   const [isApplying, setIsApplying] = useState(false);
+  const [isRemediating, setIsRemediating] = useState(false);
   const [resultMessage, setResultMessage] = useState<string | null>(null);
+  const [resultOutput, setResultOutput] = useState<string | null>(null);
+  const navigate = useNavigate();
+
+  // --- Phase 3: Remediation State ---
+  const [remediationStatus, setRemediationStatus] = useState<RemediationStatus>('idle');
+  const [executionId, setExecutionId] = useState<number | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // --- PR State ---
   const [showPRDialog, setShowPRDialog] = useState(false);
@@ -68,6 +79,57 @@ const ActionCard = ({ finding, onApply }: ActionCardProps) => {
     kind === "service"
   );
 
+  // --- Phase 3: Poll remediation status ---
+  useEffect(() => {
+    if (remediationStatus !== 'running' || !executionId) return;
+
+    pollRef.current = setInterval(async () => {
+      try {
+        const resp = await fetch(
+          `${API_CONFIG.ENDPOINTS.SESSION.REMEDIATION_STATUS}?execution_id=${executionId}`
+        );
+        const data = await resp.json();
+        if (data.success) {
+          if (data.status === 'success') {
+            setRemediationStatus('success');
+            toast.success('Remediation completed successfully!');
+            if (pollRef.current) clearInterval(pollRef.current);
+          } else if (data.status === 'failed') {
+            setRemediationStatus('failed');
+            toast.error('Remediation failed. Check terminal for details.');
+            if (pollRef.current) clearInterval(pollRef.current);
+          }
+        }
+      } catch {
+        // silently retry
+      }
+    }, 3000);
+
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [remediationStatus, executionId]);
+
+  // --- Remediate via agentic endpoint (Bedrock AI) ---
+  const handleRemediate = async () => {
+    if (isRemediating) return;
+
+    setIsRemediating(true);
+    setResultMessage(null);
+    setResultOutput(null);
+
+    try {
+      const result = await onApply(finding, "remediate");
+      setResultMessage(result.message);
+      if (result.output) {
+        setResultOutput(result.output);
+      }
+    } finally {
+      setIsRemediating(false);
+    }
+  };
+
+  // Legacy apply handler (for "View Actions" flow)
   const handleApply = async () => {
     if (isApplying) return;
 
@@ -80,6 +142,20 @@ const ActionCard = ({ finding, onApply }: ActionCardProps) => {
     } finally {
       setIsApplying(false);
     }
+  };
+
+  // --- Remediation Button Render ---
+  const renderRemediateButton = () => {
+    return (
+      <Button
+        onClick={handleRemediate}
+        disabled={isRemediating}
+        className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+      >
+        {isRemediating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Zap className="h-4 w-4 mr-2" />}
+        Remediate
+      </Button>
+    );
   };
 
   // --- PR Functions ---
@@ -236,23 +312,31 @@ const ActionCard = ({ finding, onApply }: ActionCardProps) => {
               <GitPullRequest className="h-4 w-4 mr-2" />
               Raise PR
             </Button>
-            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold">
-              View Actions
-            </Button>
-            <Button
+            <Button 
               onClick={handleApply}
               disabled={isApplying}
               className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
             >
               {isApplying ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-              Remediate
+              Take Action
             </Button>
+            {renderRemediateButton()}
           </div>
 
           {resultMessage && (
             <div className="flex items-center gap-2 text-sm text-primary border border-primary/40 rounded-lg p-3 bg-secondary/10 mt-2">
               <CheckCircle2 className="h-4 w-4" />
               <span>{resultMessage}</span>
+            </div>
+          )}
+
+          {/* AI Remediation Output */}
+          {resultOutput && (
+            <div className="mt-4 p-4 rounded-lg bg-black border border-green-500/40">
+              <p className="text-xs uppercase tracking-wide text-green-500 mb-2">Agentic Remediation</p>
+              <pre className="text-sm text-green-300 font-mono whitespace-pre-wrap overflow-x-auto">
+                {resultOutput}
+              </pre>
             </div>
           )}
         </CardContent>
@@ -390,4 +474,3 @@ const ActionCard = ({ finding, onApply }: ActionCardProps) => {
 };
 
 export default ActionCard;
-

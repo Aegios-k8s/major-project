@@ -34,7 +34,7 @@ const RightSidebar = () => {
   const { isConnected, activities } = useSecurityContext();
 
   return (
-    <Card className="h-full border-cyber-border bg-card glow-border border-double">
+    <Card className="h-full border-cyber-border bg-card glow-border border-double flex flex-col min-h-0">
       <CardHeader className="flex-shrink-0">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg text-primary glow-text">Recent Activity</CardTitle>

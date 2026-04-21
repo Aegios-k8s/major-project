@@ -158,6 +158,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     const sessionToken = getSessionToken();
     
+    // Synchronously clear local state before any network awaits that could be interrupted by redirects
+    setUser(null);
+    setIsAuthenticated(false);
+    clearSessionToken();
+    localStorage.removeItem('aegios_user');
+    sessionStorage.removeItem('aegios_recent_activities');
+    
     if (sessionToken) {
       try {
         console.log('🚪 Attempting logout...');
@@ -180,11 +187,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
     
-    // Clear local state
-    setUser(null);
-    setIsAuthenticated(false);
-    clearSessionToken();
-    localStorage.removeItem('aegios_user');
     toast.success('Logged out successfully');
   };
 

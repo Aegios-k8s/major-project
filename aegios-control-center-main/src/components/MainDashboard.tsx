@@ -370,20 +370,35 @@ const MainDashboard = () => {
               <AgentConfigUpload onSuccess={(token) => setTerminalToken(token)} />
             </>
           ) : (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-green-400 flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4" />
-                  Cluster connected — run kubectl commands below.
-                </p>
-                <button
-                  onClick={() => setTerminalToken(null)}
-                  className="text-xs text-muted-foreground hover:text-red-400 transition-colors border border-cyber-border hover:border-red-500/50 px-3 py-1.5 rounded-lg"
+            <div className="p-5 rounded-xl bg-green-500/10 border border-green-500/30 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-green-500/20 rounded-lg">
+                  <CheckCircle className="h-6 w-6 text-green-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-green-400">Cluster Connected</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">Your Kubernetes cluster is ready for remediation.</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Button 
+                  onClick={() => navigate('/security-service/terminal')}
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_15px_rgba(41,163,92,0.4)]"
+                >
+                  <Terminal className="h-4 w-4 mr-2" />
+                  Open Terminal
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    localStorage.removeItem('aegios_terminal_token');
+                    setTerminalToken(null);
+                  }}
+                  className="border-destructive/30 text-destructive hover:bg-destructive/10"
                 >
                   Disconnect
-                </button>
+                </Button>
               </div>
-              <AgentTerminal ref={terminalRef} token={terminalToken} onDisconnect={() => {}} />
             </div>
           )}
         </CardContent>

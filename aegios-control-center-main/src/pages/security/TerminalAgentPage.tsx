@@ -18,11 +18,15 @@ const TerminalAgentPage = () => {
     const cmd = searchParams.get('command');
     const t = searchParams.get('token');
     if (cmd) setPendingCommand(decodeURIComponent(cmd));
-    if (t) setToken(t);
+    if (t) {
+      setToken(t);
+      localStorage.setItem('aegios_terminal_token', t);
+    }
   }, [searchParams]);
 
   const handleConfigSuccess = async (newToken: string) => {
     setToken(newToken);
+    localStorage.setItem('aegios_terminal_token', newToken);
 
     // If there's a pending remediation command, queue it via take-action
     if (pendingCommand) {
@@ -133,7 +137,10 @@ const TerminalAgentPage = () => {
                   : 'Cluster connected — You can now run kubectl commands below.'}
             </p>
             <button
-              onClick={() => setToken(null)}
+              onClick={() => {
+                setToken(null);
+                localStorage.removeItem('aegios_terminal_token');
+              }}
               className="text-xs text-muted-foreground hover:text-destructive transition-colors border border-border hover:border-destructive/50 px-3 py-1.5 rounded-lg"
             >
               Disconnect

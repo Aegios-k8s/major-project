@@ -1,154 +1,284 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Copy, Check, RefreshCw, Loader2, Zap, Terminal } from 'lucide-react';
+import { Copy, Check, RefreshCw, Loader2, Zap, Terminal, CheckCircle2, Upload } from 'lucide-react';
 import { API_CONFIG } from '@/config/api';
 
 interface AgentConfigUploadProps {
   onSuccess: (token: string) => void;
 }
 
+type FlowStatus = 'idle' | 'waiting' | 'active';
+
 export const AgentConfigUpload: React.FC<AgentConfigUploadProps> = ({ onSuccess }) => {
-  const [isGenerating, setIsGenerating] = useState(false);
+  // ── State ──────────────────────────────────────────────────────────────────
+  const [contextName, setContextName] = useState('');
+  const [curlCommand, setCurlCommand] = useState('');
+  const [orgId, setOrgId] = useState('');
+  const [status, setStatus] = useState<FlowStatus>('idle');
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [contextInput, setContextInput] = useState('');
-  const [isPolling, setIsPolling] = useState(false);
-  const [clusterMode, setClusterMode] = useState<'checking' | 'direct' | 'agent' | null>(null);
 
-  const [generatedData, setGeneratedData] = useState<{token: string, command: string} | null>(null);
+  // For generating a session token for the terminal after activation
+  const [generatedToken, setGeneratedToken] = useState('');
+
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Poll for config upload status, then check cluster mode
+  // ── Handle File Upload Directly ────────────────────────────────────────────
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!contextName.trim()) {
+      setError('Please enter a Kubernetes context name before uploading.');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    setCurlCommand(''); // Clear if previously generated
+
+    try {
+      // 1. Get Phase 2 Token
+      const initRes = await fetch(API_CONFIG.ENDPOINTS.SESSION.INIT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ context_name: contextName.trim() }),
+      });
+      const initData = await initRes.json();
+      if (!initRes.ok) throw new Error(initData.error || 'Init failed');
+
+      const p2Token = initData.token;
+      if (!p2Token) throw new Error('Token not received from backend');
+
+      // 2. Upload File with Phase 2 Token
+      const formData = new FormData();
+      formData.append('config', file);
+
+      const uploadRes = await fetch(API_CONFIG.ENDPOINTS.SESSION.UPLOAD_CONFIG_V2, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${p2Token}`
+        },
+        body: formData,
+      });
+
+      const uploadData = await uploadRes.json();
+      if (!uploadRes.ok) throw new Error(uploadData.error || 'Upload failed');
+
+      // 3. Success! Set to active and trigger connection
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+      setStatus('active');
+      localStorage.setItem('aegios_terminal_token', uploadData.session_token);
+      setTimeout(() => onSuccess(uploadData.session_token), 1000);
+
+    } catch (err: any) {
+      setError(err.message || 'File upload failed');
+    } finally {
+      setIsLoading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // ── Persist connection state on mount ──────────────────────────────────────
   useEffect(() => {
-    if (!generatedData || !isPolling) return;
+    const existingToken = localStorage.getItem('aegios_terminal_token');
+    if (existingToken && status === 'idle') {
+      fetch(`${API_CONFIG.ENDPOINTS.SESSION.CONFIG_STATUS}?token=${existingToken}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.has_config) {
+            setStatus('active');
+            onSuccess(existingToken);
+          } else {
+            localStorage.removeItem('aegios_terminal_token');
+          }
+        })
+        .catch(err => console.error("Failed to check agent status:", err));
+    }
+  }, []);
+
+  // ── Polling: watch for status='active' ─────────────────────────────────────
+  useEffect(() => {
+    if (status !== 'waiting' || !orgId || !contextName) return;
 
     pollIntervalRef.current = setInterval(async () => {
       try {
         const response = await fetch(
-          `${API_CONFIG.ENDPOINTS.SESSION.CONFIG_STATUS}?token=${generatedData.token}`
+          `${API_CONFIG.ENDPOINTS.SESSION.STATUS}?context_name=${encodeURIComponent(contextName)}&org_id=${encodeURIComponent(orgId)}`
         );
         const data = await response.json();
 
-        if (data.success && data.has_config) {
-          // Config uploaded — now check cluster mode
+        if (data.status === 'active' && data.session_token) {
+          // Config received! Transition to success state
           if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-          setIsPolling(false);
-          setClusterMode('checking');
-
-          const modeRes = await fetch(
-            `${API_CONFIG.ENDPOINTS.SESSION.CLUSTER_MODE}?token=${generatedData.token}`
-          );
-          const modeData = await modeRes.json();
-
-          if (modeData.mode === 'direct') {
-            // Cluster reachable from backend — skip agent, go to terminal!
-            setClusterMode('direct');
-            setTimeout(() => onSuccess(generatedData.token), 500);
-          } else {
-            // Agent mode — wait for WebSocket agent to connect
-            setClusterMode('agent');
-            onSuccess(generatedData.token);
-          }
+          setStatus('active');
+          
+          // Store terminal token in localStorage for remediation actions (Phase 3)
+          localStorage.setItem('aegios_terminal_token', data.session_token);
+          
+          // Connect to the terminal using the DB session token retrieved from the polling query!
+          setTimeout(() => onSuccess(data.session_token), 1000);
         }
       } catch {
-        // Silently retry
+        // Silently retry on polling failure
       }
-    }, 2000);
+    }, 3000);
 
     return () => {
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     };
-  }, [generatedData, isPolling, onSuccess]);
+  }, [status, orgId, contextName, onSuccess]);
 
+  // ── Generate Link Handler ──────────────────────────────────────────────────
   const handleGenerate = async () => {
-    if (!contextInput) {
-      setError('Please provide a context name.');
+    if (!contextName.trim()) {
+      setError('Please enter a Kubernetes context name.');
       return;
     }
 
-    setIsGenerating(true);
+    setIsLoading(true);
     setError(null);
-    setClusterMode(null);
+    setCurlCommand('');
+
     try {
-      const response = await fetch(API_CONFIG.ENDPOINTS.SESSION.GENERATE_COMMAND, {
+      const response = await fetch(API_CONFIG.ENDPOINTS.SESSION.INIT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ org_id: "1", context_name: contextInput }),
+        body: JSON.stringify({ context_name: contextName.trim() }),
       });
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to generate command');
+        throw new Error(data.error || 'Failed to initialize session');
       }
 
-      setGeneratedData({
-        token: data.token,
-        command: data.command,
-      });
-
-      setIsPolling(true);
+      setCurlCommand(data.curl_command);
+      setOrgId(data.org_id);
+      setStatus('waiting');
     } catch (err: any) {
       setError(err.message || 'An error occurred');
     } finally {
-      setIsGenerating(false);
+      setIsLoading(false);
     }
   };
 
+  // ── Copy Command ───────────────────────────────────────────────────────────
   const handleCopy = () => {
-    if (!generatedData) return;
-    navigator.clipboard.writeText(generatedData.command);
+    if (!curlCommand) return;
+    navigator.clipboard.writeText(curlCommand);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // ── Reset ──────────────────────────────────────────────────────────────────
+  const handleReset = () => {
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    setContextName('');
+    setCurlCommand('');
+    setOrgId('');
+    setStatus('idle');
+    setError(null);
+    setCopied(false);
+    setGeneratedToken('');
+  };
+
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="h-full flex flex-col justify-center gap-4">
-      {/* Step 1: Enter context and generate command */}
+    <div className="h-full flex flex-col justify-center gap-5">
+
+      {/* ── Step 1: Context Input + Generate Link ──────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="col-span-1 flex flex-col gap-2">
           <div className="h-[80px] bg-[#29A35C]/10 border border-[#29A35C]/50 rounded-xl flex items-center px-4 transition-colors focus-within:border-[#29A35C] focus-within:bg-[#29A35C]/20">
             <input
               type="text"
-              value={contextInput}
+              value={contextName}
               onChange={(e) => {
-                setContextInput(e.target.value);
-                setGeneratedData(null);
-                setIsPolling(false);
-                setClusterMode(null);
-                if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+                setContextName(e.target.value);
+                if (status !== 'idle') handleReset();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && contextName.trim() && status === 'idle') {
+                  handleGenerate();
+                }
               }}
               placeholder="enter cluster context"
-              className="w-full bg-transparent text-center text-green-muted placeholder:text-green-muted/50 font-medium focus:outline-none"
+              disabled={status === 'waiting' || status === 'active'}
+              className="w-full bg-transparent text-center text-green-muted placeholder:text-green-muted/50 font-medium focus:outline-none disabled:opacity-50"
+              id="context-name-input"
             />
           </div>
-          <button
-            onClick={handleGenerate}
-            disabled={isGenerating || !contextInput}
-            className="w-full py-2 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-black font-semibold rounded-lg flex justify-center items-center gap-2 transition-colors"
-          >
-            {isGenerating ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'Generate Link'}
-          </button>
+          <div className="flex gap-2 w-full">
+            <button
+              onClick={handleGenerate}
+              disabled={isLoading || !contextName.trim() || status === 'waiting' || status === 'active'}
+              className="flex-1 py-2 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-black font-semibold rounded-lg flex justify-center items-center gap-2 transition-colors"
+              id="generate-link-btn"
+            >
+              {isLoading ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  <Terminal className="w-4 h-4" />
+                  Link
+                </>
+              )}
+            </button>
+
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              hidden 
+              onChange={handleFileUpload} 
+              accept=".yaml,.yml,.txt,text/yaml"
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isLoading || !contextName.trim() || status === 'waiting' || status === 'active'}
+              className="flex-1 py-2 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-black font-semibold rounded-lg flex justify-center items-center gap-2 transition-colors"
+            >
+              {isLoading ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  <Upload className="w-4 h-4" />
+                  Upload
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
+        {/* ── Curl Command Display ──────────────────────────────────────── */}
         <div className="col-span-2">
-          <div className="h-[80px] bg-red-500/10 border border-red-500/50 rounded-xl p-4 flex items-center justify-center relative hover:bg-red-500/20 transition-colors group">
-            <code className="text-red-400 font-mono text-sm text-center break-all px-6">
-              {generatedData ? generatedData.command : 'Fill in the context and generate link first'}
+          <div className="min-h-[80px] bg-red-500/10 border border-red-500/50 rounded-xl p-4 flex items-center justify-center relative hover:bg-red-500/20 transition-colors group">
+            <code className="text-red-400 font-mono text-sm text-center break-all px-6 select-all" id="curl-command-display">
+              {curlCommand
+                ? curlCommand
+                : 'Fill in the context and generate link first'}
             </code>
-            {generatedData && (
+            {curlCommand && (
               <button
                 onClick={handleCopy}
-                className="absolute right-4 text-red-500/50 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-red-500/50 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
                 title="Copy command"
+                id="copy-curl-btn"
               >
-                {copied ? <Check className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5" />}
+                {copied ? (
+                  <Check className="w-5 h-5 text-green-500" />
+                ) : (
+                  <Copy className="w-5 h-5" />
+                )}
               </button>
             )}
           </div>
         </div>
       </div>
 
-      {/* Step 2: Status indicator */}
-      {generatedData && isPolling && (
+      {/* ── Step 2: Waiting State — polling for agent connection ────────── */}
+      {status === 'waiting' && (
         <div className="h-[80px] bg-[#29A35C]/10 border-2 border-dashed border-[#29A35C]/50 rounded-xl flex items-center justify-center gap-3 animate-pulse">
           <Loader2 className="w-5 h-5 text-green-400 animate-spin" />
           <span className="font-semibold text-green-muted text-sm">
@@ -157,24 +287,17 @@ export const AgentConfigUpload: React.FC<AgentConfigUploadProps> = ({ onSuccess 
         </div>
       )}
 
-      {clusterMode === 'checking' && (
-        <div className="h-[80px] bg-blue-500/10 border-2 border-dashed border-blue-500/50 rounded-xl flex items-center justify-center gap-3">
-          <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />
-          <span className="font-semibold text-blue-400 text-sm">
-            Checking cluster reachability...
-          </span>
-        </div>
-      )}
-
-      {clusterMode === 'direct' && (
+      {/* ── Step 3: Success State — agent connected ────────────────────── */}
+      {status === 'active' && (
         <div className="h-[80px] bg-green-500/10 border-2 border-green-500/50 rounded-xl flex items-center justify-center gap-3">
-          <Zap className="w-5 h-5 text-green-400" />
+          <CheckCircle2 className="w-6 h-6 text-green-400" />
           <span className="font-semibold text-green-400 text-sm">
-            ⚡ Direct mode — cluster is reachable! No agent needed. Opening terminal...
+            ✅ Agent Connected Successfully
           </span>
         </div>
       )}
 
+      {/* ── Error Display ──────────────────────────────────────────────── */}
       {error && (
         <div className="p-3 bg-red-900/20 border border-red-900/50 rounded-lg text-red-500 text-sm text-center">
           {error}

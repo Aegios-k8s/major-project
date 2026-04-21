@@ -220,8 +220,12 @@ const K8sActionCategoryPage = () => {
               finding={finding}
               onApply={async (targetFinding, command) => {
                 const targetResourceId = targetFinding.resource_id || targetFinding.finding_id;
-                const result = await applyAction(targetResourceId, command);
-                return { success: result.success, message: result.message };
+                const result = await applyAction(targetResourceId, command, {
+                  description: targetFinding.description,
+                  recommendation: targetFinding.recommendation,
+                  kind: targetFinding.kind || targetFinding.missing_kind,
+                });
+                return { success: result.success, message: result.message, output: result.output };
               }}
             />
           ))}
