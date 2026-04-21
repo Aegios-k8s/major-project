@@ -1,28 +1,47 @@
 import { useState, useRef, useEffect } from 'react';
 import { AgentConfigUpload } from '@/components/security/AgentConfigUpload';
 import { AgentTerminal, AgentTerminalRef } from '@/components/security/AgentTerminal';
-import { Terminal, ShieldCheck, ArrowLeft, Play, AlertTriangle } from 'lucide-react';
+import { Terminal, ShieldCheck, ArrowLeft, Play, AlertTriangle, Zap } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { API_CONFIG } from '@/config/api';
+import { toast } from 'sonner';
 
 const TerminalAgentPage = () => {
   const [token, setToken] = useState<string | null>(null);
   const [pendingCommand, setPendingCommand] = useState<string | null>(null);
+  const [pendingFindingId, setPendingFindingId] = useState<string | null>(null);
   const [isQueuingAction, setIsQueuingAction] = useState(false);
+  const [actionQueued, setActionQueued] = useState(false);
   const terminalRef = useRef<AgentTerminalRef>(null);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  // Check if we arrived with a remediation command via URL params
+  // Check if we arrived with a remediation command or finding_id via URL params
   useEffect(() => {
     const cmd = searchParams.get('command');
     const t = searchParams.get('token');
+    const findingId = searchParams.get('finding_id');
+
     if (cmd) setPendingCommand(decodeURIComponent(cmd));
+    if (findingId) setPendingFindingId(findingId);
     if (t) {
       setToken(t);
       localStorage.setItem('aegios_terminal_token', t);
+    } else {
+      // Check if we already have a token stored
+      const existingToken = localStorage.getItem('aegios_terminal_token');
+      if (existingToken) {
+        setToken(existingToken);
+      }
     }
   }, [searchParams]);
+
+  // When token becomes available and we have a pending finding_id, trigger the take-action
+  useEffect(() => {
+    if (token && pendingFindingId && !actionQueued) {
+      triggerTakeAction(token, pendingFindingId);
+    }
+  }, [token, pendingFindingId, actionQueued]);
 
   const handleConfigSuccess = async (newToken: string) => {
     setToken(newToken);
@@ -31,6 +50,36 @@ const TerminalAgentPage = () => {
     // If there's a pending remediation command, queue it via take-action
     if (pendingCommand) {
       await queueRemediationCommand(newToken, pendingCommand);
+    }
+  };
+
+  // Trigger take-action with finding_id — this tells the backend to look up the
+  // remediation command from agent_output and execute it via the terminal
+  const triggerTakeAction = async (sessionToken: string, findingId: string) => {
+    setIsQueuingAction(true);
+    try {
+      const response = await fetch(API_CONFIG.ENDPOINTS.SESSION.TAKE_ACTION, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: sessionToken,
+          finding_id: findingId,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        toast.success('Remediation command sent to terminal!');
+        setActionQueued(true);
+      } else {
+        toast.error(result.error || 'Failed to execute remediation');
+      }
+    } catch (err) {
+      console.error('Error triggering take-action:', err);
+      toast.error('Failed to send remediation command');
+    } finally {
+      setIsQueuingAction(false);
     }
   };
 
@@ -85,8 +134,21 @@ const TerminalAgentPage = () => {
         </button>
       </div>
 
-      {/* Pending Remediation Banner */}
-      {pendingCommand && !token && (
+      {/* Pending Remediation Banner — shows when we have a finding_id but no token yet */}
+      {pendingFindingId && !token && (
+        <div className="p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/30 flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-yellow-500 mt-0.5 shrink-0" />
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-yellow-400">Remediation Action Pending</p>
+            <p className="text-xs text-muted-foreground">
+              Connect your cluster below — the remediation fix for <code className="text-yellow-300 bg-yellow-500/10 px-1 rounded">Finding #{pendingFindingId}</code> will auto-execute once connected.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Pending Command Banner — shows when we have a raw command but no token yet */}
+      {pendingCommand && !token && !pendingFindingId && (
         <div className="p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/30 flex items-start gap-3">
           <AlertTriangle className="h-5 w-5 text-yellow-500 mt-0.5 shrink-0" />
           <div className="space-y-1">
@@ -97,6 +159,19 @@ const TerminalAgentPage = () => {
             <code className="block mt-2 text-xs font-mono text-yellow-300 bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3 break-all">
               {pendingCommand}
             </code>
+          </div>
+        </div>
+      )}
+
+      {/* Action Queued Success Banner */}
+      {actionQueued && token && (
+        <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/30 flex items-start gap-3">
+          <Zap className="h-5 w-5 text-green-400 mt-0.5 shrink-0" />
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-green-400">Remediation Sent to Terminal</p>
+            <p className="text-xs text-muted-foreground">
+              The fix command has been sent to the terminal below. Check the output for results.
+            </p>
           </div>
         </div>
       )}
@@ -131,15 +206,20 @@ const TerminalAgentPage = () => {
             <p className="text-sm text-green-400 flex items-center gap-2">
               <ShieldCheck className="h-4 w-4" />
               {isQueuingAction
-                ? 'Queuing remediation command...'
-                : pendingCommand
-                  ? 'Cluster connected — Remediation command will auto-execute.'
-                  : 'Cluster connected — You can now run kubectl commands below.'}
+                ? 'Sending remediation command to terminal...'
+                : actionQueued
+                  ? 'Cluster connected — Remediation command sent. Check output below.'
+                  : pendingFindingId
+                    ? 'Cluster connected — Preparing remediation...'
+                    : 'Cluster connected — You can now run kubectl commands below.'}
             </p>
             <button
               onClick={() => {
                 setToken(null);
                 localStorage.removeItem('aegios_terminal_token');
+                setActionQueued(false);
+                setPendingFindingId(null);
+                setPendingCommand(null);
               }}
               className="text-xs text-muted-foreground hover:text-destructive transition-colors border border-border hover:border-destructive/50 px-3 py-1.5 rounded-lg"
             >

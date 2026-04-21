@@ -39,7 +39,6 @@ const statusClassMap: Record<string, string> = {
 };
 
 const ActionCard = ({ finding, onApply }: ActionCardProps) => {
-  const [isApplying, setIsApplying] = useState(false);
   const [isRemediating, setIsRemediating] = useState(false);
   const [resultMessage, setResultMessage] = useState<string | null>(null);
   const [resultOutput, setResultOutput] = useState<string | null>(null);
@@ -129,18 +128,18 @@ const ActionCard = ({ finding, onApply }: ActionCardProps) => {
     }
   };
 
-  // Legacy apply handler (for "View Actions" flow)
-  const handleApply = async () => {
-    if (isApplying) return;
-
-    setIsApplying(true);
-    setResultMessage(null);
-
-    try {
-      const result = await onApply(finding, "remediate");
-      setResultMessage(result.message);
-    } finally {
-      setIsApplying(false);
+  // Take Action handler — navigates to Terminal page with finding_id
+  const handleTakeAction = () => {
+    const findingId = finding.finding_id || finding.resource_id || '';
+    const terminalToken = localStorage.getItem('aegios_terminal_token') || '';
+    
+    if (terminalToken) {
+      // Cluster already connected — go directly to terminal with finding_id
+      navigate(`/security-service/terminal?finding_id=${encodeURIComponent(findingId)}&token=${encodeURIComponent(terminalToken)}`);
+    } else {
+      // No cluster connected — go to terminal page to connect first, then auto-queue
+      toast.info('Please connect your cluster first, then the fix will auto-execute.');
+      navigate(`/security-service/terminal?finding_id=${encodeURIComponent(findingId)}`);
     }
   };
 
@@ -313,11 +312,9 @@ const ActionCard = ({ finding, onApply }: ActionCardProps) => {
               Raise PR
             </Button>
             <Button 
-              onClick={handleApply}
-              disabled={isApplying}
+              onClick={handleTakeAction}
               className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
             >
-              {isApplying ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
               Take Action
             </Button>
             {renderRemediateButton()}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Copy, Check, RefreshCw, Loader2, Zap, Terminal, CheckCircle2, Upload } from 'lucide-react';
 import { API_CONFIG } from '@/config/api';
+import { getSessionToken } from '@/lib/data-transformers';
 
 interface AgentConfigUploadProps {
   onSuccess: (token: string) => void;
@@ -44,7 +45,7 @@ export const AgentConfigUpload: React.FC<AgentConfigUploadProps> = ({ onSuccess 
       const initRes = await fetch(API_CONFIG.ENDPOINTS.SESSION.INIT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ context_name: contextName.trim() }),
+        body: JSON.stringify({ context_name: contextName.trim(), session_token: getSessionToken() || '' }),
       });
       const initData = await initRes.json();
       if (!initRes.ok) throw new Error(initData.error || 'Init failed');
@@ -146,7 +147,7 @@ export const AgentConfigUpload: React.FC<AgentConfigUploadProps> = ({ onSuccess 
       const response = await fetch(API_CONFIG.ENDPOINTS.SESSION.INIT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ context_name: contextName.trim() }),
+        body: JSON.stringify({ context_name: contextName.trim(), session_token: getSessionToken() || '' }),
       });
 
       const data = await response.json();

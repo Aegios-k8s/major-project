@@ -99,6 +99,7 @@ export interface SecurityContextType {
   addService: (service: Service) => void;
   updateScore: (score: K8sScore) => void;
   applyAction: (serviceId: string, command: string, findingDetails?: { description?: string; recommendation?: string; kind?: string }) => Promise<{ success: boolean; message: string; output?: string }>;
+  takeTerminalAction: (findingId: string) => void;
   runValidation: () => Promise<{ success: boolean; message: string }>;
   fetchActions: () => Promise<void>;
   fetchFindings: () => Promise<void>;
