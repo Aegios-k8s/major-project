@@ -189,57 +189,27 @@ else
     echo -e "${YELLOW}  ⚠ Cluster may not be reachable (continuing anyway)${NC}"
 fi
 
-echo -e "${YELLOW}[3/6]${NC} Extracting kubeconfig..."
-TEMP_CONFIG=$(mktemp /tmp/aegios-kubeconfig.XXXXXX)
-trap "rm -f $TEMP_CONFIG $AGENT_SCRIPT" EXIT
-kubectl config view --minify --context="$CONTEXT_NAME" --flatten > "$TEMP_CONFIG" 2>/dev/null
-if [ ! -s "$TEMP_CONFIG" ]; then
+echo -e "${YELLOW}[3/3]${NC} Extracting kubeconfig..."
+CONFIG_DIR="$HOME/.kube"
+CONFIG_FILE="$CONFIG_DIR/aegios-${CONTEXT_NAME}-config.yaml"
+
+mkdir -p "$CONFIG_DIR"
+kubectl config view --minify --context="$CONTEXT_NAME" --flatten > "$CONFIG_FILE" 2>/dev/null
+if [ ! -s "$CONFIG_FILE" ]; then
     echo -e "${RED}  ✗ Failed to extract kubeconfig.${NC}"
     exit 1
 fi
-echo -e "${GREEN}  ✓ Kubeconfig extracted${NC}"
-export KUBECONFIG="$TEMP_CONFIG"
+echo -e "${GREEN}  ✓ Kubeconfig extracted securely${NC}"
 
-echo -e "${YELLOW}[4/6]${NC} Uploading config to Aegios..."
-UPLOAD_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${BACKEND_URL}/api/upload-config" -H "Authorization: Bearer ${TOKEN}" -F "config=@${TEMP_CONFIG}" --connect-timeout 10 --max-time 30)
-HTTP_CODE=$(echo "$UPLOAD_RESPONSE" | tail -1)
-RESPONSE_BODY=$(echo "$UPLOAD_RESPONSE" | sed '$d')
-if [ "$HTTP_CODE" -ne 200 ]; then
-    echo -e "${RED}  ✗ Upload failed (HTTP ${HTTP_CODE}).${NC}"
-    exit 1
-fi
-SESSION_TOKEN=$(echo "$RESPONSE_BODY" | python3 -c 'import sys, json; print(json.load(sys.stdin).get("session_token", ""))')
-if [ -z "$SESSION_TOKEN" ]; then
-    echo -e "${RED}  ✗ Server did not return a session token.${NC}"
-    exit 1
-fi
-echo -e "${GREEN}  ✓ Config uploaded successfully${NC}"
-
-echo -e "${YELLOW}[5/6]${NC} Downloading WebSocket agent..."
-AGENT_SCRIPT=$(mktemp /tmp/aegios-agent.XXXXXX)
-AGENT_URL="${BACKEND_URL}/session/agent-script-py"
-if ! curl -fsSL "$AGENT_URL" -o "$AGENT_SCRIPT" --connect-timeout 10 --max-time 30; then
-    echo -e "${YELLOW}  ⚠ Backend agent download failed, trying GitHub...${NC}"
-    AGENT_URL="https://raw.githubusercontent.com/Aegios-k8s/kube-connect-script/main/agent.py"
-    if ! curl -fsSL "$AGENT_URL" -o "$AGENT_SCRIPT" --connect-timeout 10 --max-time 30; then
-        echo -e "${RED}  ✗ Failed to download agent.${NC}"
-        exit 1
-    fi
-fi
-echo -e "${GREEN}  ✓ Agent downloaded${NC}"
-
-echo -e "${YELLOW}[6/6]${NC} Starting WebSocket agent..."
 echo ""
-echo -e "${GREEN}${BOLD}  ✓ Agent Starting!${NC}"
-echo -e "  ${CYAN}Cluster:${NC} ${BOLD}${CONTEXT_NAME}${NC}"
-echo -e "  ${CYAN}Backend:${NC} ${BOLD}${BACKEND_URL}${NC}"
-echo -e "  ${YELLOW}   Commands from Aegios dashboard will execute here.${NC}"
-echo -e "  ${YELLOW}   Press Ctrl+C to stop.${NC}"
+echo -e "${GREEN}${BOLD}  ✓ Success! Action Required:${NC}"
+echo -e "  Your configuration has been saved locally at:"
+echo -e "  ${CYAN}${BOLD}${CONFIG_FILE}${NC}"
 echo ""
-
-WS_URL=$(echo "$BACKEND_URL" | sed 's|^http://|ws://|;s|^https://|wss://|')
-# Terminals still use the classic WS connection flow initially
-python3 "$AGENT_SCRIPT" "${WS_URL}/session/agent-ws" "$SESSION_TOKEN"
+echo -e "  ${YELLOW}Please go back to the Aegios dashboard and manually${NC}"
+echo -e "  ${YELLOW}upload this file to connect your terminal.${NC}"
+echo ""
+exit 0
 `
 
 // agentPythonScript is embedded so the backend can serve it even without GitHub access
