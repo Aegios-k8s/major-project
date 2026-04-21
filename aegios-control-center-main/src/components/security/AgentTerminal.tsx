@@ -30,6 +30,7 @@ export const AgentTerminal = forwardRef<AgentTerminalRef, AgentTerminalProps>(({
   }));
 
   useEffect(() => {
+    let isMounted = true;
     if (!token || !terminalRef.current) return;
 
     // Initialize xterm
@@ -58,6 +59,7 @@ export const AgentTerminal = forwardRef<AgentTerminalRef, AgentTerminalProps>(({
     wsRef.current = ws;
 
     ws.onopen = () => {
+      if (!isMounted) return;
       setStatus('Connected');
       term.writeln('Connected to server...');
     };
@@ -79,12 +81,14 @@ export const AgentTerminal = forwardRef<AgentTerminalRef, AgentTerminalProps>(({
     };
 
     ws.onclose = () => {
+      if (!isMounted) return;
       setStatus('Disconnected');
       term.writeln('\r\nDisconnected from server.');
       if (onDisconnect) onDisconnect();
     };
 
     ws.onerror = (e) => {
+      if (!isMounted) return;
       console.error('WebSocket Error', e);
       term.writeln('\r\nWebSocket connection error.');
     };
@@ -119,7 +123,9 @@ export const AgentTerminal = forwardRef<AgentTerminalRef, AgentTerminalProps>(({
     window.addEventListener('resize', handleResize);
 
     return () => {
+      isMounted = false;
       window.removeEventListener('resize', handleResize);
+      ws.onclose = null; // Prevent triggering close events after unmount
       ws.close();
       term.dispose();
     };

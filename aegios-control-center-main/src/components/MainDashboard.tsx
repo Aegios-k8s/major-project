@@ -150,6 +150,16 @@ const MainDashboard = () => {
 
       console.log('✅ Fetch completed:', data);
       
+      // Immediately reflect fetched stats on the dashboard manually
+      setDashboardStats((prev: any) => ({
+        ...prev,
+        stats: {
+          ...(prev?.stats || {}),
+          total_repos: data.total_repos,
+          k8s_resources: data.k8s_resources
+        }
+      }));
+      
       // Trigger security data refresh
       window.dispatchEvent(new Event('aegios:login'));
       

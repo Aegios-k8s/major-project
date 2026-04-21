@@ -39,7 +39,7 @@ const ForgotPasswordPage = () => {
       <Card className="w-full max-w-md border-cyber-border bg-card glow-border">
         <CardHeader className="text-center space-y-4">
           <div className="flex justify-center">
-            <Shield className="h-12 w-12 text-primary glow-text" />
+            <img src="/aegios_logo.png" alt="Aegios Logo" className="h-16 w-16 object-contain rounded-md" />
           </div>
           <CardTitle className="text-3xl font-bold text-primary glow-text">
             Aegios
