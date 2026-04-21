@@ -134,7 +134,14 @@ func ApplyAgentic(c *gin.Context) {
 
 	// ── Save correct_config and command to agent_output ──
 	correctConfig := generateCorrectConfig(req.ActionType, kind, name, namespace, yamlContent, changes)
+	if extractYaml := extractYamlFromAI(aiOutput); extractYaml != "" {
+		correctConfig = extractYaml
+	}
+	
 	kubectlCmd := generateKubectlCommand(req.ActionType, kind, name, namespace, yamlContent, changes)
+	if extractCmd := extractCommandFromAI(aiOutput); extractCmd != "" {
+		kubectlCmd = extractCmd
+	}
 
 	configToken, tokenErr := kubeagentservice.GetSessionTokenByOrg(orgID)
 	if tokenErr != nil {
@@ -511,4 +518,30 @@ func generateKubectlCommand(actionType, kind, name, namespace, yamlContent strin
 
 	return fmt.Sprintf("kubectl patch %s %s -n %s --type=strategic -p \"%s\"",
 		strings.ToLower(kind), name, ns, escapedJSON)
+}
+
+// extractYamlFromAI extracts the YAML code block from Bedrock AI output
+func extractYamlFromAI(aiOutput string) string {
+	re := regexp.MustCompile(`(?s)\x60\x60\x60(?:yaml)?\n(.*?)\x60\x60\x60`)
+	matches := re.FindStringSubmatch(aiOutput)
+	if len(matches) > 1 {
+		return strings.TrimSpace(matches[1])
+	}
+	return ""
+}
+
+// extractCommandFromAI extracts the kubectl command from Bedrock AI output
+func extractCommandFromAI(aiOutput string) string {
+	re := regexp.MustCompile(`(?s)\x60\x60\x60(?:sh|bash)?\n(kubectl [^\x60]+)\x60\x60\x60`)
+	matches := re.FindStringSubmatch(aiOutput)
+	if len(matches) > 1 {
+		return strings.TrimSpace(matches[1])
+	}
+	for _, line := range strings.Split(aiOutput, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "kubectl ") {
+			return line
+		}
+	}
+	return ""
 }

@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Shield, Activity, Download, CheckCircle, Database, FileCode, Terminal } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import { API_CONFIG } from "@/config/api";
@@ -60,30 +60,30 @@ const MainDashboard = () => {
     
   ];
 
-  // Fetch dashboard statistics
-  useEffect(() => {
-    const fetchDashboardStats = async () => {
-      const sessionToken = getSessionToken();
-      if (!sessionToken) return;
+  const fetchDashboardStats = useCallback(async () => {
+    const sessionToken = getSessionToken();
+    if (!sessionToken) return;
 
-      try {
-        const response = await fetch(API_CONFIG.ENDPOINTS.FETCHING.DASHBOARD, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ session_token: sessionToken }),
-        });
+    try {
+      const response = await fetch(API_CONFIG.ENDPOINTS.FETCHING.DASHBOARD, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_token: sessionToken }),
+      });
 
-        const result = await response.json();
-        if (result.success) {
-          setDashboardStats(result.data);
-        }
-      } catch (error) {
-        console.error('Failed to fetch dashboard stats:', error);
+      const result = await response.json();
+      if (result.success) {
+        setDashboardStats(result.data);
       }
-    };
+    } catch (error) {
+      console.error('Failed to fetch dashboard stats:', error);
+    }
+  }, []);
 
+  // Fetch dashboard statistics on mount and when global security data changes
+  useEffect(() => {
     fetchDashboardStats();
-  }, [services, score]);
+  }, [fetchDashboardStats, services.length, score]);
 
   // Handle scroll navigation based on URL path
   useEffect(() => {
@@ -160,6 +160,9 @@ const MainDashboard = () => {
         }
       }));
       
+      // Update from backend as well
+      await fetchDashboardStats();
+      
       // Trigger security data refresh
       window.dispatchEvent(new Event('aegios:login'));
       
@@ -208,6 +211,9 @@ const MainDashboard = () => {
         `Render completed. Found ${result.data?.vulnerabilities_found || result.data?.total_issues || 0} issues`,
         'success'
       );
+      
+      // Refresh backend stats immediately
+      await fetchDashboardStats();
       
       // Trigger security data refresh
       window.dispatchEvent(new Event('aegios:login'));
