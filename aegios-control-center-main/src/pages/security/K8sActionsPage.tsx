@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";  
 import { useParams, useNavigate } from "react-router-dom";
 import { useSecurityContext } from "@/contexts/SecurityContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,8 +7,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { AlertCircle, AlertTriangle, ChevronDown, ChevronRight, Play, Eye } from "lucide-react";
+import { AlertCircle, AlertTriangle, ChevronDown, ChevronRight, Play, Eye, GitPullRequest, GitBranch, ExternalLink, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { API_CONFIG } from "@/config/api";
 import {
   Dialog,
   DialogContent,
@@ -42,6 +43,16 @@ const K8sActionsPage = () => {
     impact: string;
     warnings: string[];
   } | null>(null);
+
+  // --- PR State ---
+  const [showPRDialog, setShowPRDialog] = useState(false);
+  const [branches, setBranches] = useState<{name: string; sha: string}[]>([]);
+  const [selectedBranch, setSelectedBranch] = useState("");
+  const [prTitle, setPrTitle] = useState("");
+  const [prDescription, setPrDescription] = useState("");
+  const [isLoadingBranches, setIsLoadingBranches] = useState(false);
+  const [isCreatingPR, setIsCreatingPR] = useState(false);
+  const [prResult, setPrResult] = useState<{pr_url: string; pr_number: number; branch_name: string} | null>(null);
 
   const selectedService = selectedServiceId ? services.find(s => s.id === selectedServiceId) : undefined;
 
@@ -132,6 +143,82 @@ const K8sActionsPage = () => {
       toast.error("Failed to apply command");
     } finally {
       setIsApplying(false);
+    }
+  };
+
+  // --- PR Functions ---
+  const fetchBranches = async () => {
+    const sessionToken = localStorage.getItem('aegios_session_token');
+    if (!sessionToken) return;
+
+    setIsLoadingBranches(true);
+    try {
+      const resp = await fetch(API_CONFIG.ENDPOINTS.SECURITY.LIST_BRANCHES, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_token: sessionToken }),
+      });
+      const result = await resp.json();
+      if (result.success && result.data?.branches) {
+        setBranches(result.data.branches);
+        if (result.data.branches.length > 0 && !selectedBranch) {
+          setSelectedBranch(result.data.branches[0].name);
+        }
+      } else {
+        toast.error(result.message || 'Failed to fetch branches');
+      }
+    } catch (err) {
+      console.error('Failed to fetch branches:', err);
+      toast.error('Failed to fetch branches');
+    } finally {
+      setIsLoadingBranches(false);
+    }
+  };
+
+  const openPRDialog = () => {
+    if (!selectedService) return;
+    setPrTitle(`[Aegios] Fix security issues for ${selectedService.name}`);
+    setPrDescription(`Security remediation for ${selectedService.name} in namespace ${selectedService.namespace}`);
+    setPrResult(null);
+    setShowPRDialog(true);
+    fetchBranches();
+  };
+
+  const handleRaisePR = async () => {
+    if (!selectedServiceId || !selectedBranch || !output) return;
+
+    const sessionToken = localStorage.getItem('aegios_session_token');
+    if (!sessionToken) {
+      toast.error('Not authenticated');
+      return;
+    }
+
+    setIsCreatingPR(true);
+    try {
+      const resp = await fetch(API_CONFIG.ENDPOINTS.SECURITY.RAISE_PR, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_token: sessionToken,
+          resource_id: selectedServiceId,
+          fixed_yaml: output,
+          target_branch: selectedBranch,
+          title: prTitle,
+          description: prDescription,
+        }),
+      });
+      const result = await resp.json();
+      if (result.success && result.data) {
+        setPrResult(result.data);
+        toast.success('Pull request created successfully!');
+      } else {
+        toast.error(result.message || 'Failed to create PR');
+      }
+    } catch (err) {
+      console.error('Failed to create PR:', err);
+      toast.error('Failed to create pull request');
+    } finally {
+      setIsCreatingPR(false);
     }
   };
 
@@ -435,10 +522,23 @@ const K8sActionsPage = () => {
                     </CardHeader>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
-                    <CardContent>
+                    <CardContent className="space-y-4">
                       <pre className="bg-secondary/50 neon-border rounded p-4 text-sm text-foreground overflow-x-auto whitespace-pre-wrap">
                         {output}
                       </pre>
+                      {/* Raise PR Button */}
+                      <div className="flex items-center gap-3">
+                        <Button
+                          onClick={openPRDialog}
+                          className="bg-[#238636] hover:bg-[#2ea043] text-white"
+                        >
+                          <GitPullRequest className="h-4 w-4 mr-2" />
+                          Raise PR to GitHub
+                        </Button>
+                        <p className="text-xs text-muted-foreground">
+                          Push this fix as a Pull Request to your repository
+                        </p>
+                      </div>
                     </CardContent>
                   </CollapsibleContent>
                 </Card>
@@ -539,6 +639,135 @@ const K8sActionsPage = () => {
               Confirm & Apply
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Raise PR Dialog ── */}
+      <Dialog open={showPRDialog} onOpenChange={setShowPRDialog}>
+        <DialogContent className="sm:max-w-[560px] neon-border bg-card">
+          <DialogHeader>
+            <DialogTitle className="text-primary neon-text flex items-center gap-2">
+              <GitPullRequest className="h-5 w-5" />
+              Raise Pull Request
+            </DialogTitle>
+            <DialogDescription>
+              Push your remediation as a PR to your GitHub repository
+            </DialogDescription>
+          </DialogHeader>
+
+          {prResult ? (
+            /* ── Success State ── */
+            <div className="py-6 text-center space-y-4">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#238636]/20 mx-auto">
+                <GitPullRequest className="h-8 w-8 text-[#238636]" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-foreground">PR #{prResult.pr_number} Created!</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Branch: <code className="text-xs bg-secondary/50 px-1.5 py-0.5 rounded">{prResult.branch_name}</code>
+                </p>
+              </div>
+              <Button
+                onClick={() => window.open(prResult.pr_url, '_blank')}
+                className="bg-[#238636] hover:bg-[#2ea043] text-white"
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                View PR on GitHub
+              </Button>
+            </div>
+          ) : (
+            /* ── Form State ── */
+            <div className="space-y-4 py-4">
+              {/* Branch Picker */}
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                  <GitBranch className="h-3.5 w-3.5" />
+                  Target Branch
+                </label>
+                {isLoadingBranches ? (
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-secondary/30 neon-border">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    <span className="text-sm text-muted-foreground">Loading branches...</span>
+                  </div>
+                ) : (
+                  <select
+                    value={selectedBranch}
+                    onChange={(e) => setSelectedBranch(e.target.value)}
+                    className="w-full p-2.5 rounded-lg bg-secondary/50 border border-cyber-border text-foreground text-sm focus:border-primary focus:outline-none transition-colors"
+                  >
+                    {branches.map((b) => (
+                      <option key={b.name} value={b.name}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {/* PR Title */}
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  PR Title
+                </label>
+                <input
+                  type="text"
+                  value={prTitle}
+                  onChange={(e) => setPrTitle(e.target.value)}
+                  className="w-full p-2.5 rounded-lg bg-secondary/50 border border-cyber-border text-foreground text-sm focus:border-primary focus:outline-none transition-colors"
+                  placeholder="[Aegios] Fix security issue..."
+                />
+              </div>
+
+              {/* PR Description */}
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Description
+                </label>
+                <Textarea
+                  value={prDescription}
+                  onChange={(e) => setPrDescription(e.target.value)}
+                  className="min-h-[80px] bg-secondary/50 neon-border text-sm resize-none"
+                  placeholder="Describe the security fix..."
+                />
+              </div>
+
+              {/* Info Box */}
+              <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
+                <p className="text-xs text-muted-foreground">
+                  A new branch <code className="text-primary">aegios/fix-*</code> will be created from <code className="text-primary">{selectedBranch || '...'}</code>, the fixed YAML will be committed, and a PR will be opened.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {!prResult && (
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setShowPRDialog(false)}
+                className="neon-border"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleRaisePR}
+                disabled={isCreatingPR || !selectedBranch || isLoadingBranches}
+                className="bg-[#238636] hover:bg-[#2ea043] text-white"
+              >
+                {isCreatingPR ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Creating PR...
+                  </>
+                ) : (
+                  <>
+                    <GitPullRequest className="h-4 w-4 mr-2" />
+                    Create Pull Request
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
     </div>

@@ -31,7 +31,7 @@ type SecurityAction =
 
 const getInitialActivities = (): import('@/types/security').ActivityLog[] => {
   try {
-    const stored = localStorage.getItem('aegios_recent_activities');
+    const stored = sessionStorage.getItem('aegios_recent_activities');
     if (stored) {
       const parsed = JSON.parse(stored);
       return parsed.map((item: any) => ({
@@ -116,7 +116,7 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const pollingRef = React.useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    localStorage.setItem('aegios_recent_activities', JSON.stringify(state.activities));
+    sessionStorage.setItem('aegios_recent_activities', JSON.stringify(state.activities));
   }, [state.activities]);
 
   const fetchServices = useCallback(async () => {
@@ -441,7 +441,7 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     dispatch({ type: 'SET_LOADING', payload: false });
   }, [fetchServices, fetchScore, fetchActions, fetchFindings]);
 
-  const applyAction = useCallback(async (resourceId: string, actionType: string) => {
+  const applyAction = useCallback(async (resourceId: string, actionType: string, findingDetails?: { description?: string; recommendation?: string; kind?: string }) => {
     const sessionToken = getSessionToken();
     if (!sessionToken) {
       toast.error('Not authenticated');
@@ -458,6 +458,9 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           session_token: sessionToken,
           resource_id: resourceId,
           action_type: actionType,
+          finding_description: findingDetails?.description || '',
+          finding_recommendation: findingDetails?.recommendation || '',
+          finding_kind: findingDetails?.kind || '',
         }),
       });
 
@@ -484,7 +487,7 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       return {
         success: true,
         message: result.message,
-        output: result.data?.note || result.data?.output || 'Action completed'
+        output: result.data?.ai_output || result.data?.note || result.data?.output || 'Action completed'
       };
     } catch (error) {
       console.error('❌ Failed to apply action:', error);

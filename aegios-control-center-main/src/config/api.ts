@@ -35,6 +35,24 @@ export const API_CONFIG = {
       ACTIONS: `${API_BASE_URL}/security-service/k8s-action`,
       AGENTIC: `${API_BASE_URL}/security-service/k8s-agentic`,
       VALIDATE_NAMESPACES: `${API_BASE_URL}/security-service/validate-namespaces`,
+      RAISE_PR: `${API_BASE_URL}/security-service/raise-pr`,
+      LIST_BRANCHES: `${API_BASE_URL}/security-service/list-branches`,
+    },
+
+    // Session / Kube Agent Service
+    SESSION: {
+      GENERATE_COMMAND: `${API_BASE_URL}/session/generate-command`,
+      UPLOAD_CONFIG: `${API_BASE_URL}/session/upload`,
+      WS: `${API_BASE_URL.replace(/^http/, 'ws')}/session/ws`,
+      TAKE_ACTION: `${API_BASE_URL}/session/take-action`,
+      ACTION_STATUS: `${API_BASE_URL}/session/action-status`,
+      CONFIG_STATUS: `${API_BASE_URL}/session/config-status`,
+      CLUSTER_MODE: `${API_BASE_URL}/session/cluster-mode`,
+      // Phase 2
+      INIT: `${API_BASE_URL}/session/init`,
+      STATUS: `${API_BASE_URL}/session/status`,
+      UPLOAD_CONFIG_V2: `${API_BASE_URL}/api/upload-config`,
+      REMEDIATION_STATUS: `${API_BASE_URL}/session/remediation-status`,
     },
   },
 };

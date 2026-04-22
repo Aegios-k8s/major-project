@@ -1,17 +1,22 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Shield, Activity, Download, CheckCircle, Database, FileCode, Cloud } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Shield, Activity, Download, CheckCircle, Database, FileCode, Terminal } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import { API_CONFIG } from "@/config/api";
 import { getSessionToken } from "@/lib/data-transformers";
 import { useSecurityContext } from "@/contexts/SecurityContext";
+import { AgentConfigUpload } from "@/components/security/AgentConfigUpload";
+import { AgentTerminal, AgentTerminalRef } from "@/components/security/AgentTerminal";
+
 
 const MainDashboard = () => {
   const [isLoadingFetch, setIsLoadingFetch] = useState(false);
   const [isLoadingValidation, setIsLoadingValidation] = useState(false);
+  const [terminalToken, setTerminalToken] = useState<string | null>(null);
+  const terminalRef = useRef<AgentTerminalRef>(null);
 
   const [dashboardStats, setDashboardStats] = useState<any>(null);
   const [fetchProgress, setFetchProgress] = useState<string>("");
@@ -55,30 +60,30 @@ const MainDashboard = () => {
     
   ];
 
-  // Fetch dashboard statistics
-  useEffect(() => {
-    const fetchDashboardStats = async () => {
-      const sessionToken = getSessionToken();
-      if (!sessionToken) return;
+  const fetchDashboardStats = useCallback(async () => {
+    const sessionToken = getSessionToken();
+    if (!sessionToken) return;
 
-      try {
-        const response = await fetch(API_CONFIG.ENDPOINTS.FETCHING.DASHBOARD, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ session_token: sessionToken }),
-        });
+    try {
+      const response = await fetch(API_CONFIG.ENDPOINTS.FETCHING.DASHBOARD, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_token: sessionToken }),
+      });
 
-        const result = await response.json();
-        if (result.success) {
-          setDashboardStats(result.data);
-        }
-      } catch (error) {
-        console.error('Failed to fetch dashboard stats:', error);
+      const result = await response.json();
+      if (result.success) {
+        setDashboardStats(result.data);
       }
-    };
+    } catch (error) {
+      console.error('Failed to fetch dashboard stats:', error);
+    }
+  }, []);
 
+  // Fetch dashboard statistics on mount and when global security data changes
+  useEffect(() => {
     fetchDashboardStats();
-  }, [services, score]);
+  }, [fetchDashboardStats, services.length, score]);
 
   // Handle scroll navigation based on URL path
   useEffect(() => {
@@ -145,6 +150,19 @@ const MainDashboard = () => {
 
       console.log('✅ Fetch completed:', data);
       
+      // Immediately reflect fetched stats on the dashboard manually
+      setDashboardStats((prev: any) => ({
+        ...prev,
+        stats: {
+          ...(prev?.stats || {}),
+          total_repos: data.total_repos,
+          k8s_resources: data.k8s_resources
+        }
+      }));
+      
+      // Update from backend as well
+      await fetchDashboardStats();
+      
       // Trigger security data refresh
       window.dispatchEvent(new Event('aegios:login'));
       
@@ -193,6 +211,9 @@ const MainDashboard = () => {
         `Render completed. Found ${result.data?.vulnerabilities_found || result.data?.total_issues || 0} issues`,
         'success'
       );
+      
+      // Refresh backend stats immediately
+      await fetchDashboardStats();
       
       // Trigger security data refresh
       window.dispatchEvent(new Event('aegios:login'));
@@ -347,37 +368,55 @@ const MainDashboard = () => {
         </Card>
       </div>
 
-      {/* Cloud-AWS Credentials Section */}
+      {/* Terminal Agent Section */}
       <Card className="border-cyber-border bg-card hover:border-[#29A35C]/50 transition-all duration-700">
         <CardHeader>
           <CardTitle className="text-xl text-green-muted flex items-center gap-2">
-            <Cloud className="h-5 w-5" />
-            Cloud Credentials (AWS)
+            <Terminal className="h-5 w-5" />
+            Terminal Agent
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <p className="text-sm text-muted-foreground mb-4">
-            Connect your AWS environment by providing your credentials to allow seamless access and scanning of cloud resources.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Access Key ID</label>
-              <Input placeholder="Enter AWS Access Key ID" className="bg-background border-cyber-border/50 focus:border-[#29A35C] text-foreground" type="password" />
+        <CardContent className="space-y-4">
+          {!terminalToken ? (
+            <>
+              <p className="text-sm text-muted-foreground mb-4">
+                Connect your Kubernetes cluster to remediate vulnerabilities directly from Aegios. 
+                Enter your context name, run the generated command in your terminal, then upload the config file.
+              </p>
+              <AgentConfigUpload onSuccess={(token) => setTerminalToken(token)} />
+            </>
+          ) : (
+            <div className="p-5 rounded-xl bg-green-500/10 border border-green-500/30 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-green-500/20 rounded-lg">
+                  <CheckCircle className="h-6 w-6 text-green-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-green-400">Cluster Connected</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">Your Kubernetes cluster is ready for remediation.</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Button 
+                  onClick={() => navigate('/security-service/terminal')}
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_15px_rgba(41,163,92,0.4)]"
+                >
+                  <Terminal className="h-4 w-4 mr-2" />
+                  Open Terminal
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    localStorage.removeItem('aegios_terminal_token');
+                    setTerminalToken(null);
+                  }}
+                  className="border-destructive/30 text-destructive hover:bg-destructive/10"
+                >
+                  Disconnect
+                </Button>
+              </div>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Secret Access Key</label>
-              <Input placeholder="Enter AWS Secret Access Key" className="bg-background border-cyber-border/50 focus:border-[#29A35C] text-foreground" type="password" />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Default Region</label>
-              <Input placeholder="e.g. us-east-1" className="bg-background border-cyber-border/50 focus:border-[#29A35C] text-foreground" />
-            </div>
-          </div>
-          <div className="flex justify-end mt-4">
-            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold min-w-32" onClick={() => toast.success("AWS credentials saved")}>
-              Connect AWS
-            </Button>
-          </div>
+          )}
         </CardContent>
       </Card>
     </div>

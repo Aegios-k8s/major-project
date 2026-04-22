@@ -27,7 +27,7 @@ const DashboardHeader = () => {
   const handleSignOut = () => {
     logout();
     toast.success("Signed out successfully");
-    navigate('/authentication/login');
+    window.location.href = '/authentication/login';
   };
 
   return (
@@ -35,7 +35,7 @@ const DashboardHeader = () => {
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         {/* Logo and Brand */}
         <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/fetching-service/dashboard')}>
-          <Shield className="h-8 w-8 text-primary glow-text" />
+          <img src="/aegios_logo.png" alt="Aegios Logo" className="h-8 w-8 object-contain rounded-md" />
           <span className="text-2xl font-bold tracking-tight text-primary glow-text">
             Aegios
           </span>
