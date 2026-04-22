@@ -21,6 +21,7 @@ const TerminalAgentPage = () => {
     const cmd = searchParams.get('command');
     const t = searchParams.get('token');
     const findingId = searchParams.get('finding_id');
+    const rUrl = searchParams.get('returnUrl');
 
     if (cmd) setPendingCommand(decodeURIComponent(cmd));
     if (findingId) setPendingFindingId(findingId);
@@ -126,7 +127,14 @@ const TerminalAgentPage = () => {
           </p>
         </div>
         <button
-          onClick={() => navigate('/security-service/k8s-action')}
+          onClick={() => {
+            const returnUrl = searchParams.get('returnUrl');
+            if (returnUrl) {
+              navigate(decodeURIComponent(returnUrl));
+            } else {
+              navigate('/security-service/k8s-action');
+            }
+          }}
           className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />

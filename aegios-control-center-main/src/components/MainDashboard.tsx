@@ -397,13 +397,6 @@ const MainDashboard = () => {
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <Button 
-                  onClick={() => navigate('/security-service/terminal')}
-                  className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_15px_rgba(41,163,92,0.4)]"
-                >
-                  <Terminal className="h-4 w-4 mr-2" />
-                  Open Terminal
-                </Button>
                 <Button
                   variant="outline"
                   onClick={() => {

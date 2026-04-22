@@ -207,7 +207,7 @@ export const AgentConfigUpload: React.FC<AgentConfigUploadProps> = ({ onSuccess 
               }}
               placeholder="enter cluster context"
               disabled={status === 'waiting' || status === 'active'}
-              className="w-full bg-transparent text-center text-green-muted placeholder:text-green-muted/50 font-medium focus:outline-none disabled:opacity-50"
+              className="w-full bg-[#0a0a0a] text-center text-green-muted placeholder:text-green-muted/50 font-medium focus:outline-none disabled:opacity-50"
               id="context-name-input"
             />
           </div>

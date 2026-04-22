@@ -132,14 +132,15 @@ const ActionCard = ({ finding, onApply }: ActionCardProps) => {
   const handleTakeAction = () => {
     const findingId = finding.finding_id || finding.resource_id || '';
     const terminalToken = localStorage.getItem('aegios_terminal_token') || '';
+    const currentPath = window.location.pathname;
     
     if (terminalToken) {
       // Cluster already connected — go directly to terminal with finding_id
-      navigate(`/security-service/terminal?finding_id=${encodeURIComponent(findingId)}&token=${encodeURIComponent(terminalToken)}`);
+      navigate(`/security-service/terminal?finding_id=${encodeURIComponent(findingId)}&token=${encodeURIComponent(terminalToken)}&returnUrl=${encodeURIComponent(currentPath)}`);
     } else {
       // No cluster connected — go to terminal page to connect first, then auto-queue
       toast.info('Please connect your cluster first, then the fix will auto-execute.');
-      navigate(`/security-service/terminal?finding_id=${encodeURIComponent(findingId)}`);
+      navigate(`/security-service/terminal?finding_id=${encodeURIComponent(findingId)}&returnUrl=${encodeURIComponent(currentPath)}`);
     }
   };
 
