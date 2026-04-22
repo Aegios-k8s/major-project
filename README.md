@@ -1,4 +1,4 @@
-# Aegios Control Center
+# A Repository-Centric Static Analysis Framework For Detecting Kubernetes Security Misconfigurations
 
 Aegios is a Kubernetes security workflow platform with:
 - A React/Vite frontend (`aegios-control-center-main`)
