@@ -213,6 +213,7 @@ exit 0
 `
 
 // agentPythonScript is embedded so the backend can serve it even without GitHub access
+//
 //go:generate echo "agent.py is embedded as a string"
 const agentPythonScript = `#!/usr/bin/env python3
 """Aegios Kube Agent - WebSocket agent (zero external dependencies)."""
@@ -394,7 +395,7 @@ def run_agent(ws_url, token):
             print(f"{C}▶ Executing:{N} {cmd}")
             out, ec = execute(cmd)
             print(out)
-            print(f"{G}✓ Done (exit {ec}){N}\n" if ec==0 else f"{R}✗ Failed (exit {ec}){N}\n")
+            print(f"{G}✓ Done (exit {ec}){N}\n" if ec == 0 else f"{R}✗ Failed (exit {ec}){N}\n")
             ws.send(json.dumps({"type":"result","output":out,"exit_code":ec,"command":cmd}))
     except KeyboardInterrupt: print(f"\n{Y}  Stopped.{N}")
     except Exception as e: print(f"{R}  ✗ Error: {e}{N}"); return False
@@ -456,12 +457,14 @@ func GenerateCommandHandler(c *gin.Context) {
 	})
 
 	scheme := "http"
-	if c.Request.TLS != nil {
+	if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
+		scheme = proto
+	} else if c.Request.TLS != nil {
 		scheme = "https"
 	}
 	backendURL := fmt.Sprintf("%s://%s", scheme, c.Request.Host)
 
-	command := fmt.Sprintf("curl -fsSL %s/session/agent-script | bash -s %s %s", backendURL, req.ContextName, token)
+	command := fmt.Sprintf("curl -fsSL %s/api/session/agent-script | bash -s %s %s \"%s/api\"", backendURL, req.ContextName, token, backendURL)
 	c.JSON(http.StatusOK, gin.H{
 		"token":   token,
 		"command": command,
@@ -575,13 +578,15 @@ func AgentWsHandler(c *gin.Context) {
 				if !ok {
 					return
 				}
-				msg, _ := json.Marshal(map[string]string{
-					"type":    "command",
-					"command": cmd,
-				})
-				if err := conn.WriteMessage(websocket.TextMessage, msg); err != nil {
-					log.Println("Failed to send command to agent:", err)
-					return
+				if cmd != "" {
+					msg, _ := json.Marshal(map[string]string{
+						"type":    "command",
+						"command": cmd,
+					})
+					if err := conn.WriteMessage(websocket.TextMessage, msg); err != nil {
+						log.Println("Failed to send command to agent:", err)
+						return
+					}
 				}
 			case <-done:
 				return
@@ -977,7 +982,7 @@ func TakeActionHandler(c *gin.Context) {
 
 		// Check agent connection OR direct config upload mode
 		session := GetSession(req.Token)
-		
+
 		var configContent string
 		hasDirectConfig := false
 		if info.ContextName != "" {
@@ -1048,14 +1053,14 @@ func TakeActionHandler(c *gin.Context) {
 				cmd := exec.Command("bash", "-c", cmdLine)
 				cmd.Env = append(os.Environ(), "KUBECONFIG="+tmpfile.Name())
 				out, err := cmd.CombinedOutput()
-				
+
 				exitCode := 0
 				status := "success"
 				if err != nil {
 					exitCode = 1
 					status = "failed"
 				}
-				
+
 				database.AppendRemediationOutput(execID, string(out))
 				database.CompleteRemediation(execID, status, exitCode)
 			}(command, execID, configContent, correctConfig)
@@ -1173,7 +1178,7 @@ func AgentScriptHandler(c *gin.Context) {
 		scheme = "https"
 	}
 	backendURL := fmt.Sprintf("%s://%s", scheme, c.Request.Host)
-	script := strings.Replace(agentScript, "@@BACKEND_URL@@", backendURL, 1)
+	script := strings.Replace(agentScript, "@@BACKEND_URL@@", backendURL+"/api", 1)
 	script = strings.ReplaceAll(script, "\r", "")
 
 	c.Header("Content-Type", "text/plain; charset=utf-8")
@@ -1195,7 +1200,7 @@ func AgentScriptV2Handler(c *gin.Context) {
 		scheme = "https"
 	}
 	backendURL := fmt.Sprintf("%s://%s", scheme, c.Request.Host)
-	script := strings.Replace(agentScriptV2, "@@BACKEND_URL@@", backendURL, 1)
+	script := strings.Replace(agentScriptV2, "@@BACKEND_URL@@", backendURL+"/api", 1)
 	script = strings.ReplaceAll(script, "\r", "")
 
 	c.Header("Content-Type", "text/plain; charset=utf-8")
@@ -1356,14 +1361,16 @@ func SessionInitHandler(c *gin.Context) {
 
 	// Build the curl command
 	scheme := "http"
-	if c.Request.TLS != nil {
+	if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
+		scheme = proto
+	} else if c.Request.TLS != nil {
 		scheme = "https"
 	}
 	backendURL := fmt.Sprintf("%s://%s", scheme, c.Request.Host)
 
 	curlCommand := fmt.Sprintf(
-		"curl -fsSL %s/session/agent-script-v2 | bash -s %s %s",
-		backendURL, req.ContextName, token,
+		"curl -fsSL %s/api/session/agent-script-v2 | bash -s %s %s \"%s/api\"",
+		backendURL, req.ContextName, token, backendURL,
 	)
 
 	c.JSON(http.StatusOK, gin.H{
@@ -1472,4 +1479,3 @@ func SessionStatusHandler(c *gin.Context) {
 		"session_token": token,
 	})
 }
-

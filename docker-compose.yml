@@ -30,7 +30,7 @@ services:
       - DB_PASSWORD=aayushsugandhi
       - DB_NAME=aegios
       - PORT=8080
-      - FRONTEND_URL=http://localhost:8082
+      - FRONTEND_URL=https://aegios.co.in
       # Note: VITE_API_BASE_URL for frontend should be the PUBLIC URL of this backend (localhost:8080)
     depends_on:
       db:
@@ -44,7 +44,7 @@ services:
     ports:
       - "8082:8081"
     environment:
-      - VITE_API_BASE_URL=http://localhost:8080
+      - VITE_API_BASE_URL=https://aegios.co.in/api
     depends_on:
       - backend
 

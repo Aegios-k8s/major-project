@@ -144,10 +144,10 @@ export const AgentConfigUpload: React.FC<AgentConfigUploadProps> = ({ onSuccess 
     setCurlCommand('');
 
     try {
-      const response = await fetch(API_CONFIG.ENDPOINTS.SESSION.INIT, {
+      const response = await fetch(API_CONFIG.ENDPOINTS.SESSION.GENERATE_COMMAND, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ context_name: contextName.trim(), session_token: getSessionToken() || '' }),
+        body: JSON.stringify({ context_name: contextName.trim(), org_id: "1" }),
       });
 
       const data = await response.json();
@@ -155,8 +155,9 @@ export const AgentConfigUpload: React.FC<AgentConfigUploadProps> = ({ onSuccess 
         throw new Error(data.error || 'Failed to initialize session');
       }
 
-      setCurlCommand(data.curl_command);
-      setOrgId(data.org_id);
+      setCurlCommand(data.command || data.curl_command);
+      setOrgId(data.org_id || "1");
+      setGeneratedToken(data.token);
       setStatus('waiting');
     } catch (err: any) {
       setError(err.message || 'An error occurred');
@@ -170,10 +171,17 @@ export const AgentConfigUpload: React.FC<AgentConfigUploadProps> = ({ onSuccess 
     if (!curlCommand) return;
     navigator.clipboard.writeText(curlCommand);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setTimeout(() => {
+      setCopied(false);
+      // Immediately transition to Phase 1 Terminal!
+      if (generatedToken) {
+        localStorage.setItem('aegios_terminal_token', generatedToken);
+        onSuccess(generatedToken);
+      }
+    }, 1500);
   };
 
-  // ── Reset ──────────────────────────────────────────────────────────────────
+  // ── Cancel/Reset ───────────────────────────────────────────────────────────
   const handleReset = () => {
     if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     setContextName('');

@@ -43,7 +43,7 @@ export const API_CONFIG = {
     SESSION: {
       GENERATE_COMMAND: `${API_BASE_URL}/session/generate-command`,
       UPLOAD_CONFIG: `${API_BASE_URL}/session/upload`,
-      WS: `${API_BASE_URL.replace(/^http/, 'ws')}/session/ws`,
+      WS: `${API_BASE_URL.replace(/^https?/, "wss")}/session/ws`,
       TAKE_ACTION: `${API_BASE_URL}/session/take-action`,
       ACTION_STATUS: `${API_BASE_URL}/session/action-status`,
       CONFIG_STATUS: `${API_BASE_URL}/session/config-status`,
