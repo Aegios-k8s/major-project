@@ -1,8 +1,8 @@
 package kubeagentservice
 
 import (
-	"encoding/base64"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -248,14 +248,14 @@ class WebSocketClient:
             self.port = 443 if self.use_ssl else 80
 
     def connect(self):
-        raw = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        raw.settimeout(30)
+        raw = socket.create_connection((self.host, self.port), timeout=30)
         if self.use_ssl:
             ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
             self.sock = ctx.wrap_socket(raw, server_hostname=self.host)
         else:
             self.sock = raw
-        self.sock.connect((self.host, self.port))
         key = base64.b64encode(os.urandom(16)).decode()
         hs = (f"GET {self.path} HTTP/1.1\r\nHost: {self.host}:{self.port}\r\n"
               f"Upgrade: websocket\r\nConnection: Upgrade\r\n"
