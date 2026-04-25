@@ -56,6 +56,7 @@ export const AgentTerminal = forwardRef<AgentTerminalRef, AgentTerminalProps>(({
     // Connect WebSocket
     const wsUrl = `${API_CONFIG.ENDPOINTS.SESSION.WS}?token=${token}`;
     const ws = new WebSocket(wsUrl);
+    ws.binaryType = "arraybuffer";
     wsRef.current = ws;
 
     ws.onopen = () => {
@@ -68,15 +69,9 @@ export const AgentTerminal = forwardRef<AgentTerminalRef, AgentTerminalProps>(({
       if (typeof event.data === 'string') {
         term.write(event.data);
         term.scrollToBottom();
-      } else {
-        const reader = new FileReader();
-        reader.onload = () => {
-          if (reader.result) {
-            term.write(new Uint8Array(reader.result as ArrayBuffer));
-            term.scrollToBottom();
-          }
-        };
-        reader.readAsArrayBuffer(event.data);
+      } else if (event.data instanceof ArrayBuffer) {
+        term.write(new Uint8Array(event.data));
+        term.scrollToBottom();
       }
     };
 
