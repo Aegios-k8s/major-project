@@ -756,9 +756,8 @@ func WsHandler(c *gin.Context) {
 	}
 
 	configData, err := database.GetConfigCredential(info.OrgID, info.ContextName)
-	if err != nil || configData == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Config not found for session"})
-		return
+	if err != nil {
+		log.Printf("Warning: Config not found or DB error for session %s: %v", token[:8], err)
 	}
 
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
@@ -770,9 +769,11 @@ func WsHandler(c *gin.Context) {
 
 	// Auto-detect mode: can backend reach the cluster directly?
 	configPath := filepath.Join(ConfigDir, token+".yaml")
-	os.WriteFile(configPath, []byte(configData), 0600)
+	if configData != "" {
+		os.WriteFile(configPath, []byte(configData), 0600)
+	}
 
-	if checkClusterReachable(token) {
+	if configData != "" && checkClusterReachable(token) {
 		// ═══ DIRECT MODE: PTY shell inside container ═══
 		log.Printf("[%s] Direct mode — cluster reachable from backend", token[:8])
 		wsHandleDirect(conn, token, configPath)
