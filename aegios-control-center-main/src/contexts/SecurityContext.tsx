@@ -502,6 +502,10 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, [fetchServices, fetchScore, fetchActions, fetchFindings]);
 
+  const takeTerminalAction = useCallback((findingId: string) => {
+    window.location.href = `/security-service/terminal?finding_id=${encodeURIComponent(findingId)}`;
+  }, []);
+
   const runValidation = useCallback(async () => {
     const sessionToken = getSessionToken();
     if (!sessionToken) {
@@ -587,6 +591,7 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     addService,
     updateScore,
     applyAction,
+    takeTerminalAction,
     runValidation,
     fetchActions,
     fetchFindings,

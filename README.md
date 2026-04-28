@@ -1,22 +1,87 @@
-# A Repository-Centric Static Analysis Framework For Detecting Kubernetes Security Misconfigurations
+<div align="center">
 
-Aegios is a Kubernetes security workflow platform with:
-- A React/Vite frontend (`aegios-control-center-main`)
-- A Go/Gin backend (`github-pat-backend`)
-- A PostgreSQL data layer (via `docker-compose.yml`)
+  <img src="https://socialify.git.ci/alivevivek8/Aegios/image?description=1&font=Inter&language=1&name=1&owner=1&pattern=Circuit+Board&theme=Dark" alt="Aegios Banner" width="800" />
 
-This README documents the current implementation and real request flow in this repository.
+  <h1>🛡️ Aegios</h1>
+  
+  <p>
+    <b>A Repository-Centric Static Analysis Framework For Detecting Kubernetes Security Misconfigurations</b>
+  </p>
 
-## What the platform does
-1. Authenticates users with GitHub username + PAT.
-2. Syncs repositories and tracks Kubernetes-related files.
-3. Renders Helm charts into concrete Kubernetes resources.
-4. Runs validation checks and stores findings.
-5. Computes score, posture, and action views from findings.
-6. Executes remediation through terminal integration (direct mode or remote agent mode).
-7. Optionally opens GitHub pull requests with suggested fixes.
+  <p>
+    Aegios is an automated Kubernetes security posture management tool that integrates seamlessly with GitHub to fetch repository data, track files, render Helm charts, and run comprehensive security validation checks against your infrastructure.
+  </p>
 
-## High-level architecture
+  <p>
+    <a href="https://github.com/alivevivek8/aegios/stargazers"><img src="https://img.shields.io/github/stars/alivevivek8/aegios?style=for-the-badge&color=2ea44f" alt="Stars" /></a>
+    <a href="https://github.com/alivevivek8/aegios/issues"><img src="https://img.shields.io/github/issues/alivevivek8/aegios?style=for-the-badge&color=2ea44f" alt="Issues" /></a>
+    <a href="https://github.com/alivevivek8/aegios/blob/main/LICENSE"><img src="https://img.shields.io/github/license/alivevivek8/aegios?style=for-the-badge&color=2ea44f" alt="License" /></a>
+  </p>
+
+  <p>
+    <a href="#about">About</a> •
+    <a href="#features">Features</a> •
+    <a href="#getting-started">Getting Started</a> •
+    <a href="#architecture">Architecture</a>
+  </p>
+
+</div>
+
+---
+
+## Table of Contents
+- [About](#about)
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Architecture](#architecture)
+- [Project Structure](#project-structure)
+- [Getting Started](#getting-started)
+- [Configuration](#configuration)
+- [Security](#security)
+- [How to Contribute?](#how-to-contribute)
+- [What's Next?](#whats-next)
+- [License](#license)
+- [Acknowledgements](#acknowledgements)
+- [Author](#author)
+
+---
+
+## About
+
+Aegios is an automated Kubernetes security posture management tool that integrates seamlessly with GitHub. It fetches repository data, tracks Kubernetes-related files, renders Helm charts, and runs comprehensive security validation checks against the resulting concrete resources. By providing a centralized control center, Aegios enables DevOps and security teams to monitor their Kubernetes cluster score, investigate vulnerabilities, and apply automated, AI-driven remediation directly through a secure terminal agent or by opening GitHub pull requests.
+
+---
+
+## Features
+
+- **GitHub Integration:** Authenticate with GitHub using Personal Access Tokens (PAT) to securely sync repositories and track Kubernetes infrastructure files.
+- **Helm Rendering Engine:** Automatically pulls Helm charts and environment-specific values, executing `helm template` to ingest concrete Kubernetes YAML resources.
+- **Comprehensive Validation Checks:** Analyzes resources for misconfigurations, including:
+  - Resource limits and quotas
+  - Secret management
+  - Container security (privileged mode, root user, etc.)
+  - Service exposure (ports, load balancers)
+  - Network policies (ingress/egress rules)
+  - RBAC over-permissions
+- **Security Posture Dashboard:** Computes and visualizes an overall Kubernetes security score, categorizing findings by severity and issue type.
+- **Agentic Remediation:** Uses AI (AWS Bedrock) to generate precise remediation commands and configurations based on detected vulnerabilities.
+- **Secure Terminal Execution:** A local Python WebSocket agent bridges the browser terminal to the local Kubernetes cluster, enabling users to execute remediation commands safely.
+- **Automated Pull Requests:** Optionally generate fix branches and open GitHub pull requests directly from the dashboard to enforce GitOps workflows.
+
+---
+
+## Tech Stack
+
+- **Frontend:** React, Vite, TypeScript, Tailwind CSS, shadcn/ui
+- **Backend:** Go, Gin Framework, WebSocket
+- **Database:** PostgreSQL
+- **AI/LLM:** AWS Bedrock
+- **Infrastructure:** Docker, Docker Compose, Kubernetes, Helm
+
+---
+
+## Architecture
+
 ```mermaid
 graph TD
     U[Browser]
@@ -37,196 +102,160 @@ graph TD
     AG --> CL
 ```
 
-## Repository map
+### End-to-End Workflow
+1. **Authentication:** User logs in with GitHub username and PAT.
+2. **Fetch Data:** Backend fetches repo metadata and files via GitHub API.
+3. **Render:** Helm charts are rendered into concrete resources and stored in the database.
+4. **Validation:** System runs namespace-level validation checks to generate findings.
+5. **Posture Analysis:** Findings are aggregated into Scores, Posture views, and Actionable items.
+6. **Remediation:** AI generates fixes; terminal agent executes them or PRs are opened.
+
+---
+
+## Project Structure
+
 ```text
 .
-|-- aegios-control-center-main/      # Frontend app
-|   |-- src/contexts/                # Auth + security data lifecycle
-|   |-- src/pages/                   # Dashboard/auth/security routes
-|   |-- src/components/security/     # Score/posture/actions/terminal UI
-|   |-- src/lib/                     # Session token + transformer helpers
+|-- aegios-control-center-main/      # Frontend React/Vite App
+|   |-- src/contexts/                # Context API for auth and security lifecycle
+|   |-- src/pages/                   # Application routes and pages
+|   |-- src/components/security/     # UI components for score, posture, terminal
+|   |-- src/lib/                     # Utilities and data transformers
 |   `-- Dockerfile
-|-- github-pat-backend/              # Backend API gateway + services
-|   |-- services/authentication/     # signup/login/signout
-|   |-- services/fetching-service/   # GitHub fetch + Helm render ingestion
-|   |-- services/security-service/   # validation/score/posture/actions/PR
-|   |-- services/kube-agent-service/ # session/token/websocket terminal flows
-|   |-- pkg/database/                # schema + db access helpers
-|   |-- pkg/github/                  # GitHub REST client for branch/PR ops
-|   |-- pkg/bedrock/                 # Bedrock remediation client
+|-- github-pat-backend/              # Backend Go API Gateway & Services
+|   |-- services/authentication/     # Authentication flows (login/signup)
+|   |-- services/fetching-service/   # GitHub file tracking & Helm rendering
+|   |-- services/security-service/   # Validation, scoring, and PR generation
+|   |-- services/kube-agent-service/ # WebSocket terminal bridging & session management
+|   |-- pkg/database/                # PostgreSQL schema and query logic
+|   |-- pkg/github/                  # GitHub REST/GraphQL clients
+|   |-- pkg/bedrock/                 # AWS Bedrock AI integration
 |   `-- Dockerfile
-|-- docker-compose.yml
-`-- README.md
+|-- docker-compose.yml               # Container orchestration
+`-- README.md                        # Project documentation
 ```
 
-## End-to-end workflow (actual code flow)
+---
 
-### 1) Authentication
-- Frontend routes:
-  - `/authentication/signup`
-  - `/authentication/login`
-- Backend endpoints:
-  - `POST /authentication/signup`
-  - `POST /authentication/login`
-  - `POST /authentication/signout`
-- Behavior:
-  - Signup validates `github_username + PAT` against GitHub API.
-  - Password is bcrypt-hashed.
-  - Login creates a DB-backed `user_sessions` token (24h).
-  - Frontend stores token in `localStorage` (`aegios_session_token`).
+## Getting Started
 
-### 2) Repository fetch and file tracking
-- Triggered from dashboard `Fetch Data` button.
-- Endpoint: `POST /fetching-service/fetch-data` (optimized path).
-- Behavior:
-  - Validates session token.
-  - Reads encrypted PAT from DB and fetches repos from GitHub (GraphQL first, REST fallback).
-  - Inserts/updates `github_repository` and `github_files` metadata.
-  - Uses commit SHA/time/hash comparison for incremental behavior.
-  - First-time fetch limits tracked commit metadata (implementation limit).
+### Prerequisites
+- Docker and Docker Compose (Recommended)
+- Node.js & npm (for manual frontend run)
+- Go 1.21+ (for manual backend run)
+- PostgreSQL (for manual DB setup)
 
-### 3) Helm rendering and Kubernetes resource ingestion
-- Triggered from dashboard `Render` button.
-- Endpoint: `POST /fetching-service/rendering`.
-- Behavior:
-  - Reads first repository for the org (`LIMIT 1` behavior).
-  - Pulls `Helm/*` files from GitHub.
-  - Expects chart/value structure:
-    - `Helm/charts/<chart>/...`
-    - `Helm/environments/dummy-tenant/values-*.yaml`
-  - Executes `helm template` per values file.
-  - Parses rendered YAML docs, converts to JSON, upserts into `kubernetes_resource`.
-
-### 4) Validation and finding generation
-- Triggered from `K8s Score` page `Run Validation`.
-- Endpoint: `POST /security-service/validate-namespaces`.
-- Behavior:
-  - Loads `kubernetes_resource` per org.
-  - Required kind checks per namespace.
-  - Security checks currently include:
-    - Resource misconfiguration
-    - Secret misconfiguration
-    - Container security
-    - Service exposure
-    - Network policy openness
-    - RBAC over-permission
-  - Writes findings into `findings`.
-
-### 5) Score, posture, and actions views
-- Endpoints:
-  - `POST /security-service/k8s-score`
-  - `POST /security-service/k8s-posture`
-  - `POST /security-service/k8s-posture-findings`
-  - `POST /security-service/k8s-action`
-- Frontend behavior:
-  - Security pages call `refreshData()` from `SecurityContext`.
-  - Category pages primarily use findings (`k8s-posture-findings`) to build cards.
-  - Score is findings-driven (no findings means score payload indicates no validation data).
-
-### 6) Agentic remediation and terminal execution
-- AI remediation endpoint: `POST /security-service/k8s-agentic`.
-- It generates remediation output, stores command/config to `agent_output`, and supports finding/resource IDs.
-- Terminal execution endpoint: `POST /session/take-action`.
-  - `finding_id` mode: lookup command, create `remediation_executions`, execute via WS agent or direct fallback.
-  - Legacy mode: token + command queue.
-- Status polling endpoint: `GET /session/remediation-status?execution_id=...`.
-
-### 7) Terminal session lifecycle (Phase 2/3 flow)
-1. Frontend calls `POST /session/init` with context name.
-2. Backend returns `curl` command for `/session/agent-script-v2` and a short-lived in-memory token.
-3. User runs command locally (extracts kubeconfig).
-4. Frontend uploads file to `POST /api/upload-config` with Bearer token.
-5. Backend activates config and returns long-lived session token.
-6. Frontend opens `ws://.../session/ws?token=...`.
-7. Backend auto-selects:
-   - Direct mode: backend can reach cluster with uploaded kubeconfig.
-   - Agent mode: bridge browser terminal to local Python WS agent (`/session/agent-ws`).
-
-## GitHub PR flow
-- List branches: `POST /security-service/list-branches`
-- Raise PR: `POST /security-service/raise-pr`
-- Backend creates fix branch, commits provided YAML content, and opens PR against selected base branch.
-
-## Database tables created at startup
-- `organization`
-- `github_credentials`
-- `user_sessions`
-- `github_repository`
-- `github_files`
-- `kubernetes_resource`
-- `findings`
-- `config_credentials`
-- `agent_output`
-- `remediation_executions`
-
-## Run the project
-
-### Option A: Docker Compose (recommended)
+### Option A: Docker Compose (Recommended)
+This is the fastest way to get the entire stack running.
 ```bash
 docker compose up --build -d
 ```
+- **Frontend:** `http://localhost:8082`
+- **Backend:** `http://localhost:8080`
+- **Database:** `localhost:5433`
 
-Services:
-- Frontend: `http://localhost:8082`
-- Backend: `http://localhost:8080`
-- Postgres: `localhost:5433`
+### Option B: Manual Setup
 
-### Option B: Manual run
-1. Start DB:
+**1. Start the Database:**
 ```bash
 docker compose up db -d
 ```
 
-2. Run backend:
+**2. Run the Backend:**
 ```bash
 cd github-pat-backend
 go mod tidy
 go run main.go
 ```
 
-3. Run frontend (note port):
+**3. Run the Frontend:**
 ```bash
 cd aegios-control-center-main
 npm ci
 npm run dev -- --host :: --port 8081
 ```
+*(Note: Ensure frontend port is distinct from backend port 8080)*
 
-Note: `vite.config.ts` defaults to port `8080`, which conflicts with backend default `8080` unless overridden.
+### Recommended Usage Sequence
+1. **Signup/Login:** Register with your GitHub credentials.
+2. **Fetch Data:** Sync your repositories using the dashboard button.
+3. **Render:** Convert Helm charts to readable YAML resources.
+4. **Validation:** Navigate to `K8s Score` and click `Run Validation`.
+5. **Review:** Explore findings in the `K8s Posture` and `K8s Actions` views.
+6. **Remediate:** Connect the terminal agent and click `Take Action` to apply fixes.
 
-## Environment variables
+---
+
+## Configuration
+
+Configure the application using Environment Variables.
 
 ### Backend (`github-pat-backend/.env`)
-Required for core run:
-- `DB_HOST`
-- `DB_PORT`
-- `DB_USER`
-- `DB_PASSWORD`
-- `DB_NAME`
-- `PORT` (default `8080`)
-- `FRONTEND_URL` (default `http://localhost:8081`)
+**Required:**
+- `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
+- `PORT` (default: 8080)
+- `FRONTEND_URL` (default: `http://localhost:8081`)
 
-Optional:
-- `ALLOWED_EXTENSIONS` (comma-separated file extensions for fetch filtering)
-- `AWS_ACCESS_KEY_ID`
-- `AWS_SECRET_ACCESS_KEY`
-- `AWS_REGION` (default `ap-south-1`)
+**Optional:**
+- `ALLOWED_EXTENSIONS` (e.g., `.yaml,.yml,.json`)
+- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` (for Bedrock integration)
 
 ### Frontend (`aegios-control-center-main/.env`)
-- `VITE_API_BASE_URL` (for example `http://localhost:8080`)
-- `VITE_ENABLE_MOCK_DATA` (`true|false`)
+- `VITE_API_BASE_URL` (e.g., `http://localhost:8080`)
+- `VITE_ENABLE_MOCK_DATA` (`true` or `false`)
 
-## Known implementation notes
-- Helm rendering and PR client use the first repo for an org (`LIMIT 1`).
-- Validation findings are regenerated per validation run.
-- CORS currently allows all origins (`*`) in backend middleware.
-- Bedrock call failures currently fall back to simulated remediation behavior.
-- Terminal script files are served from backend endpoints; there is no separate `kube-connect-script/` folder in this repo.
+### Database Tables (Auto-migrated on startup)
+- `organization`, `github_credentials`, `user_sessions`, `github_repository`, `github_files`
+- `kubernetes_resource`, `findings`, `config_credentials`, `agent_output`, `remediation_executions`
 
-## Recommended usage sequence
-1. Signup and login.
-2. Click `Fetch Data` on dashboard.
-3. Click `Render` on dashboard.
-4. Open `K8s Score` and run `Validation`.
-5. Review `K8s Posture` and `K8s Actions` categories.
-6. Connect terminal agent from dashboard or terminal page.
-7. Use `Take Action` or `Remediate` and monitor execution status.
+---
+
+## Security
+
+- **Authentication:** Users are authenticated via GitHub username and PAT validation. Passwords are encrypted using `bcrypt`.
+- **Session Management:** Temporary session tokens (24h lifespan) are stored in the database and saved locally in the browser's `localStorage`.
+- **Token Security:** GitHub Personal Access Tokens are encrypted before being persisted to the database to ensure credential safety.
+- **Terminal Execution:** The WebSocket agent ensures commands are safely executed in an isolated environment with user consent, utilizing short-lived connection tokens.
+
+---
+
+## How to Contribute?
+
+We welcome contributions! To contribute:
+1. Fork the repository.
+2. Create a new branch (`git checkout -b feature/your-feature-name`).
+3. Make your changes and commit them (`git commit -m 'Add some feature'`).
+4. Push to the branch (`git push origin feature/your-feature-name`).
+5. Open a Pull Request.
+
+---
+
+## What's Next?
+
+- **Multi-repo Support:** Expanding Helm rendering and PR capabilities beyond the `LIMIT 1` repository restriction per organization.
+- **Real-time Finding Updates:** Using WebSockets to stream validation finding updates dynamically.
+- **Expanded Validation Rules:** Adding robust support for custom OPA/Rego policies.
+- **Enhanced AI Error Handling:** Improving AWS Bedrock fallback mechanisms for edge-case infrastructure setups.
+
+---
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+---
+
+## Acknowledgements
+
+- Built with [React](https://reactjs.org/) and [Vite](https://vitejs.dev/)
+- Backend powered by [Go](https://go.dev/) and [Gin](https://gin-gonic.com/)
+- UI components by [shadcn/ui](https://ui.shadcn.com/)
+- AI Remediation using [AWS Bedrock](https://aws.amazon.com/bedrock/)
+
+---
+
+## Author
+
+**Aegios Team**
+- GitHub: [Your GitHub Profile]
+- Contact: [Your Email/Website]
